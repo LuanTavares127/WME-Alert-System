@@ -11,8 +11,10 @@ A library for Waze Map Editor (WME) userscripts. It shows dialogs, snackbars and
 
 ## Usage
 
+Copy the versioned `@require` URL from the library's page on Greasy Fork: https://greasyfork.org/scripts/602363-wme-alert-system. Source code: https://github.com/LuanTavares127/WME-Alert-System.
+
 ```js
-// @require https://update.greasyfork.org/scripts/<id>/<version>/WME%20Alert%20System.js
+// @require https://update.greasyfork.org/scripts/602363/<version-id>/WME%20Alert%20System.js
 // @grant   unsafeWindow
 
 const alerts = (await WmeAlertSystem.ready()).register({
