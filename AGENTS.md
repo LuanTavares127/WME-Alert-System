@@ -54,7 +54,7 @@ alerts.dialog.close(id)
 alerts.snackbar.show(text, { id, closeDelay = 5000, closeAutomatically = true })   // → { id, close() }
 alerts.snackbar.close(id)
 
-alerts.notification.add({ id, title, message, buttonText, buttonURL /* http(s) */ | action, data /* JSON, stored as a copy; TypeError otherwise */ })   // → id
+alerts.notification.add({ id, title, message, buttonText, buttonURL /* http(s) */ | action, keepOpen /* bell stays open on action; default closes it */, data /* JSON, stored as a copy; TypeError otherwise */ })   // → id
 alerts.notification.remove(id) / clear() / list()
 alerts.notification.onAction(action, handler)       // call on every load: handlers aren't stored
 
@@ -63,7 +63,7 @@ alerts.map.confirm({ title, content, lonLat, applyButtonText, cancelButtonText }
 alerts.inline.alert(container, { variant, title, text, dismissible })                       // → { element, remove() }
 ```
 - `title`, `text`, labels, notification texts: plain text (escaped). `content` and changelog `changes` HTML: trusted HTML of the calling script.
-- Changelog entries: same shape as the author's `changelog.json` — `{ version, versionId?, date: 'YYYY-MM-DD', changes: { <locale>: html, en: html } }`; text = `changes[locale] || changes.en`. First install stores the version silently; an update shows every entry `> last seen && <= current` (dialog mode, and the bell notification's button through `data.since`). A `loader` has 15 s; after an update, a script whose notes failed to load is left out of the dialog and not marked as seen (retried on the next load).
+- Changelog entries: same shape as the author's `changelog.json` — `{ version, versionId?, date: 'YYYY-MM-DD', changes: { <locale>: html, en: html } }`; text = `changes[locale] || changes.en`. First install stores the version silently; an update shows every entry `> last seen && <= current` (dialog mode, and the bell notification's button through `data.since`). Notification mode keeps one notice per script (id `changelog`; up to v1.0.0 it was `changelog-<version>`): a newer update replaces an unopened one and keeps the oldest `since`. A `loader` has 15 s; after an update, a script whose notes failed to load is left out of the dialog and not marked as seen (retried on the next load).
 
 ### Dialogs (`DialogQueue` section)
 `enqueueDialog` → `processNextDialog` (waits while a WME `wz-dialog` is open; retry 1 s) → `openDialog` (`wz-dialog` in `#wz-dialog-container`, `<form>` + header/content/controls `layout="horizontal-reverse"`, `componentOnReady` then `showDialog()`). Close = `dialogHidden` event, fallback shadow root emptied (`isRendered`), last resort `watchActiveDialog` (every 1 s: wrapper removed from the page → finished). A dialog closed before `componentOnReady` is never shown. The promise always resolves. Non-core dialogs show "Sent by <script>".
@@ -77,7 +77,7 @@ One library `wz-snackbar#was-snackbar` in `#map-message-container`, refilled per
 - **`query` (native)**: the `QueryClient` found by walking the React fiber of `#notification-button` (`__reactFiber$…` → `memoizedProps.value` / `dependencies.firstContext`). Our records are converted to the feed format (`toNativeNotification`) and merged into `getQueryData(['notifications'])` (plain array; an object holding one is still accepted); `getQueryCache().subscribe` re-merges after every refetch (signature compare avoids loops). WME requests about our ids (`Feed/Notifications/…was-<id>`) are answered locally by wrappers on `fetch` / `XMLHttpRequest` (DELETE removes; anything else is just answered). Tried 20× (1 s) after start.
 - **No read state** (like the native bell): records have no `isRead`, opening an item changes nothing, the counter is the number of items (in `query` the WME counts the merged list itself).
 - **`dom` (fallback)**: observes `<body>` for the tippy popup `.tippy-box[data-theme~="notifications-box"]` and prepends items with the native markup (`notification-item item-type-notification`, `wz-h6.title`, `.message`, `wz-caption.timestamp`, `wz-button.delete-button`); details view with `.notification-content-container`; counter = native value + our item count on `wz-notification-indicator`.
-- Button actions: `buttonURL = '#was-action:<id>'`, intercepted by a capture click listener on `document`.
+- Button actions: `buttonURL = '#was-action:<id>'`, intercepted by a capture click listener on `document`. The bell popup is closed (`closeBellPopup`: click on `#notification-button`, tippy `hide()` as fallback) before the handler runs, unless the record has `keepOpen`.
 - Storage: `localStorage.wmeAlertSystemNotifications` (records with `id = was-<scriptId>.<id>`: `.` can't appear in either part, so ids of different scripts never collide; 15 per script, 30 days). Synced across tabs via `storage` events.
 - Language: script texts are stored as given. The library's own texts (changelog notice, default "Open" button) also store `textKeys: { title|message|buttonText: [key, params] }` and are translated again on display (`getNotificationText`); the translated text is stored too, for older copies that ignore `textKeys`. Only the third `addNotification` argument sets them: the client never passes it.
 
