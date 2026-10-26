@@ -429,6 +429,7 @@
                 ],
                 { key: 'action', label: 'action (when Button = action)', value: 'say-hello' },
                 { key: 'buttonURL', label: 'buttonURL (when Button = url)', value: 'https://www.waze.com/' },
+                { key: 'keepOpen', label: 'keepOpen (bell stays open when the action runs)', type: 'toggle', value: false },
                 { key: 'data', label: 'data (JSON, empty = none)', type: 'textarea', value: '{ "answer": 42 }' }
             ],
             buttons: [
@@ -456,7 +457,8 @@
                             options.buttonURL = v.buttonURL;
 
                         if (v.buttonKind == 'action' && v.action) {
-                            options.action = v.action;
+                            options.action   = v.action;
+                            options.keepOpen = v.keepOpen;
 
                             alerts.notification.onAction(v.action, onNotificationAction);
                         }
