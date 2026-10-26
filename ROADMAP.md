@@ -20,7 +20,7 @@ Contexto técnico completo em `AGENTS.md`. Os números de linha mudam com o temp
 | 5b | Correções dos problemas encontrados no teste | **Opus 5.5** | alto | 5a | ✅ Concluída (2026-10-25): × no RTL, `alarming` removido do `map.confirm`, textos da lib no sininho retraduzidos, aba oculta só documentada; revisão do `wme-reviewer` corrigida e conferida ao vivo no Beta. Seções Dialogs, Extras e i18n do checklist: 21/21 no Beta |
 | 6 | Git: `git init`, `.gitignore`, primeiro commit, branches `main`/`development` | Haiku 5.5 | baixo | 2c | ✅ Concluída (2026-10-26): `development` (tudo) e `main` (só o público, `devVersion = false`) no GitHub (`origin`: LuanTavares127/WME-Alert-System); o commit inicial gerado pelo GitHub foi substituído |
 | 7a | `CHANGELOG.md` no repositório (sem aviso ao usuário final) e checagem no `check.mjs` | Sonnet 5.5 | baixo | 5b | ✅ Concluída |
-| 7b | Release 1.0.0 da biblioteca no Greasy Fork (tipo "library"), `devVersion = false` | Sonnet 5.5 | baixo | 7a, 6 | ⏳ Pendente (publicação feita pelo usuário) |
+| 7b | Release 1.0.0 da biblioteca no Greasy Fork (tipo "library"), `devVersion = false` | Sonnet 5.5 | baixo | 7a, 6 | 🚧 Em andamento: v1.0.0 no `main`, página criada no Greasy Fork (id 602363) só com o modelo vazio do Tampermonkey; falta enviar o código do `main` e testar o `@require` publicado |
 
 **Legenda de status:** ⏳ Pendente · 🚧 Em andamento · 🧪 Implementada, aguardando teste no WME · ✅ Concluída (critério de aceite verificado) · ⏸️ Adiada (decisão do usuário; nada depende dela) · ⛔ Bloqueada (dizer o motivo).
 
@@ -219,7 +219,7 @@ Decisão do usuário (2026-10-25): a biblioteca **não** avisa o usuário final 
 
 ### 7b — Release 1.0.0
 
-**Modelo:** Sonnet 5.5 · **Esforço:** baixo · **Status:** ⏳ Pendente (publicação feita pelo usuário)
+**Modelo:** Sonnet 5.5 · **Esforço:** baixo · **Status:** 🚧 Em andamento (falta enviar o código ao Greasy Fork)
 
 - `devVersion = false` e `node scripts/check.mjs --release`.
 - Versão 1.0.0 no cabeçalho e no `VERSION`.
