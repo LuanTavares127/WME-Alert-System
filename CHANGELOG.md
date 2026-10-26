@@ -4,9 +4,9 @@ All notable changes to WME Alert System. Aimed at script authors who `@require` 
 
 Format based on [Keep a Changelog](https://keepachangelog.com/). Changes that break the public API (`register()` and the client) are marked **Breaking**.
 
-## [0.1.0] - 2026-10-25
+## [1.0.0] - 2026-10-26
 
-First development version (not published yet).
+First public release.
 
 ### Added
 - Singleton bootstrap shared by every `@require`d copy (the newest version wins).
