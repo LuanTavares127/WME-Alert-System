@@ -1,6 +1,6 @@
 # AGENTS.md — WME Alert System
 
-Shared **library** for Waze Map Editor (WME) userscripts. Scripts `@require` it and get native WME dialogs, snackbars, bell notifications and a unified changelog, all queued so scripts don't overlap each other. Author: Luan Tavares (luan_tavares_127). License: GPLv3. Not published yet (version `0.x` until the first release). Repository: https://github.com/LuanTavares127/WME-Alert-System (remote `origin`).
+Shared **library** for Waze Map Editor (WME) userscripts. Scripts `@require` it and get native WME dialogs, snackbars, bell notifications and a unified changelog, all queued so scripts don't overlap each other. Author: Luan Tavares (luan_tavares_127). License: GPLv3. Released: v1.0.0 (2026-10-26). Repository: https://github.com/LuanTavares127/WME-Alert-System (remote `origin`).
 
 The maintainer writes in **Brazilian Portuguese**: reply in pt-BR. Code, comments, JSDoc and the `@TODO`/`@Changelog` blocks in **English**: no pt-BR in `wmeAlertSystem.js` besides the translations (locale blocks, `@name:pt-BR`/`@description:pt-BR`) (user decision, 2026-10-25). Only user-facing strings are translated (47 locales). Commit messages in pt-BR.
 

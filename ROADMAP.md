@@ -1,7 +1,7 @@
 # Roadmap — WME Alert System
 
 Plano de execução em fases, da primeira versão da biblioteca até a primeira versão pública.
-Base: v0.1.0 (ainda sem git e não publicada). Revisado em 2026-10-25.
+Base: v1.0.0 (lançada em 2026-10-26). Revisado em 2026-10-26.
 
 Contexto técnico completo em `AGENTS.md`. Os números de linha mudam com o tempo; localize pelo nome do método (`grep -n "^    (async )\?nomeDoMetodo("`).
 
