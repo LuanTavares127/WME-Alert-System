@@ -41,6 +41,8 @@ Changelog entries use the shape `{ version, date: 'YYYY-MM-DD', changes: { en: '
 
 Texts (`title`, `text`, labels, notification fields) are plain text. `content` and changelog `changes` are trusted HTML from your own script.
 
+Pressing a notification's `action` button closes the bell popup before your handler runs; pass `keepOpen: true` to `add()` to leave it open.
+
 A notification's `data` must be JSON-serializable (`add()` throws a `TypeError` otherwise); it is stored as a copy. Notification texts are stored as given: if the user changes the WME language, your old notifications keep the language they were created in (the library's own "updated" notices follow the current language).
 
 `map.confirm()` has no `alarming` option: the WME map balloon has no red style. Use `dialog.confirm(title, text, { alarming: true })` when the action needs a red button.

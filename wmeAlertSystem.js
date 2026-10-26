@@ -17,6 +17,8 @@
  */
 
 /* @Changelog:
+    - Unreleased: a notification's action closes the bell popup first (`keepOpen: true` keeps it open); one changelog notice per script
+      (a new update replaces the unopened one, keeping every version since the last one seen).
     - First version of the library: queued dialogs (wz-dialog) and snackbars (wz-snackbar), notifications in the native bell
       (React Query, with a native-markup fallback), unified changelog, map confirmation and inline alert.
  */
@@ -893,6 +895,7 @@ class WmeAlertSystemCore {
      * @param {string} [options.buttonText] - Button label in the notification details.
      * @param {string} [options.buttonURL] - http(s) link of the button.
      * @param {string} [options.action] - Handler name (`onAction`) run by the button instead of a link.
+     * @param {boolean} [options.keepOpen=false] - Keeps the bell popup open when the action runs (closed first by default).
      * @param {*} [options.data] - JSON-serializable data given to the handler (stored as a copy).
      * @param {Object<string, Array>} [textKeys={}] - Library texts as `{ field: [key, params] }`, translated again on display (not exposed to scripts).
      *
@@ -918,6 +921,7 @@ class WmeAlertSystemCore {
             buttonText: options?.buttonText ? String(options.buttonText) : '',
             buttonURL: action ? `${ this.nativeNotification.actionPrefix }${ id }` : this.sanitizeUrl(options?.buttonURL),
             action,
+            keepOpen: action ? options?.keepOpen === true : false,
             data,
             timestamp: now,
             expiresAt: now + this.limits.notificationLifetime
@@ -1038,6 +1042,10 @@ class WmeAlertSystemCore {
         if (!record)
             return;
 
+        // Before the handler, so a dialog it opens isn't left under the popup
+        if (!record.keepOpen)
+            this.closeBellPopup();
+
         // Every version since the one seen before the update, like the dialog mode
         if (record.action == '__was-changelog') {
             this.showChangelog([record.scriptId], { [record.scriptId]: record.data?.since });
@@ -1060,6 +1068,28 @@ class WmeAlertSystemCore {
         } catch (error) {
             this.logDebug(`The action "${ record.action }" of ${ record.sender } failed: ${ error.message }`, true, 'error');
         }
+    }
+
+    /**
+     * Closes the bell popup: through the bell button, so the WME's own state follows (the tippy instance is the fallback).
+     *
+     * @returns {void}
+     */
+    closeBellPopup() {
+        let root = document.querySelector('[data-tippy-root] .tippy-box[data-theme~="notifications-box"]')?.closest('[data-tippy-root]');
+
+        if (!root)
+            return;
+
+        let button = document.getElementById('notification-button');
+
+        if (button) {
+            (button.querySelector('wz-button, button') || button).click();
+
+            return;
+        }
+
+        root._tippy?.hide();
     }
 
     /**
@@ -1650,7 +1680,13 @@ class WmeAlertSystemCore {
         }
 
         if (entry.changelog.mode == 'notification') {
-            this.addNotification(entry, { id: `changelog-${ entry.version }`, action: '__was-changelog', data: { since: last } }, {
+            // One notice per script: an unopened one is replaced, keeping the oldest version seen (ids had the version up to v1.0.0)
+            let previous = this.notifications.filter(record => record.scriptId == entry.scriptId && record.action == '__was-changelog');
+            let since    = previous.map(record => String(record.data?.since || '')).filter(Boolean).reduce((oldest, version) => this.isVersionGreater(oldest, version) ? version : oldest, last);
+
+            this.notifications = this.notifications.filter(record => !previous.includes(record));
+
+            this.addNotification(entry, { id: 'changelog', action: '__was-changelog', data: { since } }, {
                 title: ['changelog.updatedTitle', { script: entry.scriptName }],
                 message: ['changelog.updatedMessage', { script: entry.scriptName, version: entry.version }],
                 buttonText: ['buttons.changelog']
