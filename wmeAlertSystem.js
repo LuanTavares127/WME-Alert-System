@@ -2,7 +2,7 @@
 // @name                WME Alert System
 // @name:pt-BR          WME Alert System
 // @namespace           https://greasyfork.org/users/luan_tavares_127
-// @version             1.2.0
+// @version             1.2.1
 // @description         Shared library for WME userscripts: native dialogs, snackbars, bell notifications and a unified changelog, queued so scripts don't overlap.
 // @description:pt-BR   Biblioteca compartilhada para userscripts do WME: diálogos, snackbars, notificações no sininho e changelog unificado, nativos e enfileirados para os scripts não se sobreporem.
 // @author              luan_tavares_127
@@ -30,7 +30,7 @@ class WmeAlertSystemCore {
      * @returns {string}
      */
     static get VERSION() {
-        return '1.2.0';
+        return '1.2.1';
     }
 
     /**
@@ -1804,7 +1804,7 @@ class WmeAlertSystemCore {
 
         let oldest     = shown.length ? shown[shown.length - 1].version : entry.version;
         let hasHistory = (list || []).some(item => this.isVersionGreater(oldest, item.version));
-        let notes      = shown.length ? shown.map(item => this.renderChangelogCard(entry, item)).join('') : `<p>${ this.getTranslation('changelog.unavailable') }</p>`;
+        let notes      = shown.length ? shown.map(item => item.version == entry.version ? this.renderChangelogCurrent(item) : this.renderChangelogCard(entry, item)).join('') : `<p>${ this.getTranslation('changelog.unavailable') }</p>`;
         let scriptId   = this.escapeHtml(entry.scriptId);
 
         let links = [
@@ -1924,7 +1924,17 @@ class WmeAlertSystemCore {
     }
 
     /**
-     * Renders one changelog entry as a card (version and date on top, the notes below).
+     * Renders the notes of the running version as they are: no card, version or date (the dialog title already names the version).
+     * @param {Object} item - The changelog entry of the running version.
+     *
+     * @returns {string}
+     */
+    renderChangelogCurrent(item) {
+        return `<div class="was-changelog-current">${ this.getChangelogText(item) }</div>`;
+    }
+
+    /**
+     * Renders one older changelog entry as a card (version and date on top, the notes below).
      * @param {Object} entry - The registry entry of the script.
      * @param {Object} item - The changelog entry ({ version, versionId?, date, changes }).
      *
@@ -2313,13 +2323,18 @@ class WmeAlertSystemCore {
                 mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
             }
 
-            /* Keeps the dialog away from the screen edges: the chips stay on top, the notes scroll */
+            /* Keeps the dialog away from the screen edges: the chips stay on top, the notes scroll; the right padding keeps notes and cards off the scroll bar */
             .was-changelog-body {
                 max-height: min(60vh, 560px);
                 overflow-y: auto;
+                padding-right: 8px;
             }
 
-            /* One card per version (update notes and history), same look as the changelog history of WME Sidebar Wazeopedia */
+            .was-changelog-current > :first-child {
+                margin-top: 0px;
+            }
+
+            /* One card per older version (update notes and history), same look as the changelog history of WME Sidebar Wazeopedia */
             .was-changelog-card {
                 border: 1px solid var(--disabled_text);
                 border-radius: 8px;

@@ -4,6 +4,11 @@ All notable changes to WME Alert System. Aimed at script authors who `@require` 
 
 Format based on [Keep a Changelog](https://keepachangelog.com/). Changes that break the public API (`register()` and the client) are marked **Breaking**.
 
+## [1.2.1] - 2026-10-27
+
+### Fixed
+- Changelog dialog: the running version's notes are plain again (the script's HTML as is, no card, version or date: the dialog title already names the version), as in 1.1.0 and WME Speed Display; only the other versions (older versions of the update and "See previous changes") are cards. The notes area has a right padding so the text and the cards no longer touch the scroll bar.
+
 ## [1.2.0] - 2026-10-27
 
 ### Changed
