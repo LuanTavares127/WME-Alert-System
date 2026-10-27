@@ -2,7 +2,7 @@
 // @name                WME Alert System
 // @name:pt-BR          WME Alert System
 // @namespace           https://greasyfork.org/users/luan_tavares_127
-// @version             1.1.0
+// @version             1.2.0
 // @description         Shared library for WME userscripts: native dialogs, snackbars, bell notifications and a unified changelog, queued so scripts don't overlap.
 // @description:pt-BR   Biblioteca compartilhada para userscripts do WME: diálogos, snackbars, notificações no sininho e changelog unificado, nativos e enfileirados para os scripts não se sobreporem.
 // @author              luan_tavares_127
@@ -30,7 +30,7 @@ class WmeAlertSystemCore {
      * @returns {string}
      */
     static get VERSION() {
-        return '1.1.0';
+        return '1.2.0';
     }
 
     /**
@@ -1804,7 +1804,7 @@ class WmeAlertSystemCore {
 
         let oldest     = shown.length ? shown[shown.length - 1].version : entry.version;
         let hasHistory = (list || []).some(item => this.isVersionGreater(oldest, item.version));
-        let notes      = shown.length ? shown.map(item => this.renderChangelogEntry(item, shown.length > 1)).join('') : `<p>${ this.getTranslation('changelog.unavailable') }</p>`;
+        let notes      = shown.length ? shown.map(item => this.renderChangelogCard(entry, item)).join('') : `<p>${ this.getTranslation('changelog.unavailable') }</p>`;
         let scriptId   = this.escapeHtml(entry.scriptId);
 
         let links = [
@@ -1924,21 +1924,7 @@ class WmeAlertSystemCore {
     }
 
     /**
-     * Renders one changelog entry as plain notes.
-     * @param {Object} item - The entry ({ version, date, changes }).
-     * @param {boolean} withHeader - Show the version and date.
-     *
-     * @returns {string}
-     */
-    renderChangelogEntry(item, withHeader) {
-        let date   = /^\d{4}-\d{2}-\d{2}$/.test(item.date ?? '') ? ` · ${ this.escapeHtml(this.formatLocalizedDate(`${ item.date }T00:00:00`)) }` : '';
-        let header = withHeader ? `<wz-caption class="was-changelog-entry-title">v${ this.escapeHtml(item.version) }${ date }</wz-caption>` : '';
-
-        return `<div class="was-changelog-entry">${ header }${ this.getChangelogText(item) }</div>`;
-    }
-
-    /**
-     * Renders one older changelog entry as a card (version and date on top, the notes below).
+     * Renders one changelog entry as a card (version and date on top, the notes below).
      * @param {Object} entry - The registry entry of the script.
      * @param {Object} item - The changelog entry ({ version, versionId?, date, changes }).
      *
@@ -2333,16 +2319,7 @@ class WmeAlertSystemCore {
                 overflow-y: auto;
             }
 
-            .was-changelog-entry + .was-changelog-entry {
-                margin-top: 12px;
-            }
-
-            .was-changelog-entry-title {
-                display: block;
-                margin-bottom: 4px;
-            }
-
-            /* One card per older version, same look as the changelog history of WME Sidebar Wazeopedia */
+            /* One card per version (update notes and history), same look as the changelog history of WME Sidebar Wazeopedia */
             .was-changelog-card {
                 border: 1px solid var(--disabled_text);
                 border-radius: 8px;

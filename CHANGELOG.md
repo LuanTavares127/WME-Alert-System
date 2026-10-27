@@ -4,6 +4,11 @@ All notable changes to WME Alert System. Aimed at script authors who `@require` 
 
 Format based on [Keep a Changelog](https://keepachangelog.com/). Changes that break the public API (`register()` and the client) are marked **Breaking**.
 
+## [1.2.0] - 2026-10-27
+
+### Changed
+- Changelog dialog: the notes of the update (one or several versions) are cards too, like the older versions of "See previous changes": version (a link to its code on Greasy Fork when the entry has a `versionId` and the script gave `links.greasyFork`) and date on top, notes below.
+
 ## [1.1.0] - 2026-10-27
 
 ### Added
