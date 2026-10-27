@@ -1,7 +1,7 @@
 # Roadmap — WME Alert System
 
 Plano de execução em fases, da primeira versão da biblioteca até a primeira versão pública.
-Base: v1.0.0 (lançada em 2026-10-26). Revisado em 2026-10-26.
+Base: v1.0.0 (lançada em 2026-10-26). Revisado em 2026-10-27.
 
 Contexto técnico completo em `AGENTS.md`. Os números de linha mudam com o tempo; localize pelo nome do método (`grep -n "^    (async )\?nomeDoMetodo("`).
 
@@ -21,6 +21,7 @@ Contexto técnico completo em `AGENTS.md`. Os números de linha mudam com o temp
 | 6 | Git: `git init`, `.gitignore`, primeiro commit, branches `main`/`development` | Haiku 5.5 | baixo | 2c | ✅ Concluída (2026-10-26): `development` (tudo) e `main` (só o público, `devVersion = false`) no GitHub (`origin`: LuanTavares127/WME-Alert-System); o commit inicial gerado pelo GitHub foi substituído |
 | 7a | `CHANGELOG.md` no repositório (sem aviso ao usuário final) e checagem no `check.mjs` | Sonnet 5.5 | baixo | 5b | ✅ Concluída |
 | 7b | Release 1.0.0 da biblioteca no Greasy Fork (tipo "library"), `devVersion = false` | Sonnet 5.5 | baixo | 7a, 6 | 🚧 Em andamento: v1.0.0 no `main`, página criada no Greasy Fork (id 602363) só com o modelo vazio do Tampermonkey; falta enviar o código do `main` e testar o `@require` publicado |
+| 8 | Changelog em cards (uma versão por card, com link para o código da versão) | Sonnet 5.5 | médio | 7b | 🚧 Código pronto (v1.1.0); falta testar via CDP, publicar e passar o id do `@require` |
 
 **Legenda de status:** ⏳ Pendente · 🚧 Em andamento · 🧪 Implementada, aguardando teste no WME · ✅ Concluída (critério de aceite verificado) · ⏸️ Adiada (decisão do usuário; nada depende dela) · ⛔ Bloqueada (dizer o motivo).
 
@@ -227,3 +228,36 @@ Decisão do usuário (2026-10-25): a biblioteca **não** avisa o usuário final 
 - Anotar no readme a URL versionada do `@require`.
 
 **Critério de aceite:** um script de teste com o `@require` publicado funciona no WME.
+
+## Fase 8 — Changelog em cards
+
+**Modelo:** Sonnet 5.5 · **Esforço:** médio · **Depende de:** 7b · **Status:** 🚧 Código pronto (v1.1.0); falta teste no WME e publicação
+
+**Por quê:** pedido do usuário (2026-10-27). O padrão dele é o histórico do changelog em **cards**, como no WME Sidebar Wazeopedia, e o Waze Chat Plus perdeu os cards ao adotar a biblioteca. A causa é a biblioteca: `renderChangelogEntry` gera um bloco simples por versão (`.was-changelog-entry`: legenda "vX · data" + HTML).
+
+A correção fica aqui para valer em todos os scripts. Ela é pré-requisito da Fase 15 do WME Sidebar Wazeopedia (`../WME-Sidebar-Wazeopedia/ROADMAP.md`), que vai adotar a biblioteca e precisa do id do `@require` publicado com esta mudança.
+
+### Itens
+1. `renderChangelogEntry` (e quem o chama: `renderChangelogSection`, `renderChangelogHistory`) passa a gerar um **card** por versão, nas notas pós-atualização (uma ou várias versões) e no histórico:
+   - cabeçalho `wz-h5` com "vX.Y.Z" à esquerda e a data à direita (`font-size: small`, peso normal);
+   - a versão vira link para `${ entry.links.greasyFork }?version=${ item.versionId }` quando a entrada tem `versionId` e o script informou `links.greasyFork`, com o tooltip de um texto novo (ex.: `changelog.viewVersionCode`, "View this version's code");
+   - corpo em `wz-caption` com o HTML da nota (`:first-child` sem margem de topo).
+   - Escapar a versão e o `versionId`. O HTML da nota continua confiável, vindo do script.
+2. CSS portado do WME Sidebar Wazeopedia (`injectStyles`, `.wazeopedia-changelog-history-card*`), com prefixo `was-`:
+   - borda `1px solid var(--disabled_text)` e `border-radius: 8px`;
+   - padding `var(--wz-card-padding, 15px)`;
+   - título em `var(--disabled_text)`;
+   - link `var(--primary)` → `var(--primary_variant)` + sublinhado no hover, também sob `[wz-theme="dark"]`;
+   - espaçamento entre cards, sem margem no primeiro e no último.
+3. Sem mudança: chips, rolagem (`max-height: min(60vh, 560px)`), "Ver script"/"Ver no Discuss" e o botão do histórico.
+4. Texto novo com `node scripts/i18n.mjs set` (só traduções reais nos 44 blocos).
+5. Fechamento:
+   - versão **minor**, porque muda o visual para todos os scripts, + seção no `CHANGELOG.md` (não é Breaking: a API não muda);
+   - `node scripts/check.mjs` e agente `wme-reviewer`;
+   - teste com `examples/consumer.user.js` via CDP no Opera GX: uma versão, várias versões, histórico, entrada sem `versionId`, tema escuro e RTL;
+   - o usuário publica no Greasy Fork e passa o novo id do `@require` para o Wazeopedia (Fase 15 de lá) e, depois, para o Waze Chat Plus.
+
+**Critério de aceite:**
+- Cada versão aparece num card com versão (link quando há `versionId`) e data.
+- O visual bate com o histórico do WME Sidebar Wazeopedia 1.1.0.
+- `check.mjs` passa.
