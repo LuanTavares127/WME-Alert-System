@@ -279,7 +279,7 @@ switch (command) {
 
             if (range.packed) {
                 // Append on its own line before the closing brace; the last packed line may lack a trailing comma.
-                if (!/[,{]s*$/.test(lines[range.to - 1]))
+                if (!/[,{]\s*$/.test(lines[range.to - 1]))
                     lines[range.to - 1] = lines[range.to - 1].trimEnd() + ',';
 
                 lines.splice(range.to, 0, newLine);
@@ -300,6 +300,10 @@ switch (command) {
                     break;
                 }
             }
+
+            // Appending after the last key: it may lack a trailing comma.
+            if (insertAt > range.from && !/[,{]\s*$/.test(lines[insertAt - 1]))
+                lines[insertAt - 1] = lines[insertAt - 1].trimEnd() + ',';
 
             lines.splice(insertAt, 0, newLine);
         });

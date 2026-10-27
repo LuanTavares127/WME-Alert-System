@@ -2,7 +2,7 @@
 // @name                WME Alert System
 // @name:pt-BR          WME Alert System
 // @namespace           https://greasyfork.org/users/luan_tavares_127
-// @version             1.0.0
+// @version             1.1.0
 // @description         Shared library for WME userscripts: native dialogs, snackbars, bell notifications and a unified changelog, queued so scripts don't overlap.
 // @description:pt-BR   Biblioteca compartilhada para userscripts do WME: diálogos, snackbars, notificações no sininho e changelog unificado, nativos e enfileirados para os scripts não se sobreporem.
 // @author              luan_tavares_127
@@ -30,7 +30,7 @@ class WmeAlertSystemCore {
      * @returns {string}
      */
     static get VERSION() {
-        return '1.0.0';
+        return '1.1.0';
     }
 
     /**
@@ -1924,7 +1924,7 @@ class WmeAlertSystemCore {
     }
 
     /**
-     * Renders one changelog entry.
+     * Renders one changelog entry as plain notes.
      * @param {Object} item - The entry ({ version, date, changes }).
      * @param {boolean} withHeader - Show the version and date.
      *
@@ -1935,6 +1935,32 @@ class WmeAlertSystemCore {
         let header = withHeader ? `<wz-caption class="was-changelog-entry-title">v${ this.escapeHtml(item.version) }${ date }</wz-caption>` : '';
 
         return `<div class="was-changelog-entry">${ header }${ this.getChangelogText(item) }</div>`;
+    }
+
+    /**
+     * Renders one older changelog entry as a card (version and date on top, the notes below).
+     * @param {Object} entry - The registry entry of the script.
+     * @param {Object} item - The changelog entry ({ version, versionId?, date, changes }).
+     *
+     * @returns {string}
+     */
+    renderChangelogCard(entry, item) {
+        let date    = /^\d{4}-\d{2}-\d{2}$/.test(item.date ?? '') ? this.escapeHtml(this.formatLocalizedDate(`${ item.date }T00:00:00`)) : '';
+        let version = `<strong>v${ this.escapeHtml(item.version) }:</strong>`;
+
+        // The version points to its code on Greasy Fork when the script gave both the page and the version id
+        if (entry.links.greasyFork && item.versionId != null && item.versionId !== '') {
+            let url   = `${ entry.links.greasyFork }?version=${ encodeURIComponent(item.versionId) }`;
+            let title = this.escapeHtml(this.getTranslation('changelog.viewVersionCode'));
+
+            version = `<a class="was-changelog-card-version" href="${ this.escapeHtml(url) }" target="_blank" rel="noopener noreferrer" title="${ title }">${ version }</a>`;
+        }
+
+        return `
+            <div class="was-changelog-card">
+                <wz-h5 class="was-changelog-card-title">${ version }<span class="was-changelog-card-date">${ date }</span></wz-h5>
+                <wz-caption class="was-changelog-card-content">${ this.getChangelogText(item) }</wz-caption>
+            </div>`;
     }
 
     /**
@@ -1959,7 +1985,7 @@ class WmeAlertSystemCore {
         try {
             let older = (await this.loadChangelog(entry)).filter(item => this.isVersionGreater(button.dataset.wasBefore, item.version));
 
-            container.innerHTML = older.length ? older.map(item => this.renderChangelogEntry(item, true)).join('') : `<p>${ this.getTranslation('changelog.noHistory') }</p>`;
+            container.innerHTML = older.length ? older.map(item => this.renderChangelogCard(entry, item)).join('') : `<p>${ this.getTranslation('changelog.noHistory') }</p>`;
 
             button.remove();
 
@@ -2316,6 +2342,61 @@ class WmeAlertSystemCore {
                 margin-bottom: 4px;
             }
 
+            /* One card per older version, same look as the changelog history of WME Sidebar Wazeopedia */
+            .was-changelog-card {
+                border: 1px solid var(--disabled_text);
+                border-radius: 8px;
+                box-sizing: border-box;
+                margin-top: 30px;
+                margin-bottom: var(--wz-card-padding, 15px);
+            }
+
+            .was-changelog-card:first-child {
+                margin-top: 0px;
+            }
+
+            .was-changelog-card:last-child {
+                margin-bottom: 0px;
+            }
+
+            .was-changelog-card-title {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                color: var(--disabled_text);
+                padding: var(--wz-card-padding, 15px);
+            }
+
+            .was-changelog-card-date {
+                font-size: small;
+                font-weight: normal;
+            }
+
+            .was-changelog-card-version,
+            .was-changelog-card-version:visited,
+            [wz-theme="dark"] .was-changelog-card-version,
+            [wz-theme="dark"] .was-changelog-card-version:visited {
+                color: var(--primary);
+                text-decoration: none;
+            }
+
+            .was-changelog-card-version:hover,
+            .was-changelog-card-version:visited:hover,
+            [wz-theme="dark"] .was-changelog-card-version:hover,
+            [wz-theme="dark"] .was-changelog-card-version:visited:hover {
+                color: var(--primary_variant);
+                text-decoration: underline;
+            }
+
+            .was-changelog-card-content {
+                display: block;
+                padding: 0px var(--wz-card-padding, 15px) var(--wz-card-padding, 15px) var(--wz-card-padding, 15px);
+            }
+
+            .was-changelog-card-content > :first-child {
+                margin-top: 0px;
+            }
+
             .was-changelog-links {
                 display: flex;
                 flex-wrap: wrap;
@@ -2647,7 +2728,8 @@ class WmeAlertSystemCore {
                         title: 'Nuut in jou skripte',
                         unavailable: 'Die notas vir hierdie weergawe is nie beskikbaar nie.',
                         updatedMessage: '%{script} is opgedateer na v%{version}. Sien wat verander het.',
-                        updatedTitle: '%{script} opgedateer'
+                        updatedTitle: '%{script} opgedateer',
+                        viewVersionCode: 'Bekyk die kode van hierdie weergawe',
                     },
                     dialog: {
                         sentBy: 'Gestuur deur %{script}'
@@ -2678,7 +2760,8 @@ class WmeAlertSystemCore {
                         title: 'الجديد في سكربتاتك',
                         unavailable: 'ملاحظات هذا الإصدار غير متاحة.',
                         updatedMessage: 'تم تحديث %{script} إلى الإصدار v%{version}. اطّلع على ما تغيّر.',
-                        updatedTitle: 'تم تحديث %{script}'
+                        updatedTitle: 'تم تحديث %{script}',
+                        viewVersionCode: 'عرض كود هذا الإصدار',
                     },
                     dialog: {
                         sentBy: 'أرسله %{script}'
@@ -2708,7 +2791,8 @@ class WmeAlertSystemCore {
                         title: 'Новото във вашите скриптове',
                         unavailable: 'Бележките за тази версия не са налични.',
                         updatedMessage: '%{script} е обновен до v%{version}. Вижте какво е променено.',
-                        updatedTitle: '%{script} е обновен'
+                        updatedTitle: '%{script} е обновен',
+                        viewVersionCode: 'Преглед на кода на тази версия',
                     },
                     dialog: {
                         sentBy: 'Изпратено от %{script}'
@@ -2739,7 +2823,8 @@ class WmeAlertSystemCore {
                         title: 'Novetats dels teus scripts',
                         unavailable: 'Les notes d\'aquesta versió no estan disponibles.',
                         updatedMessage: '%{script} s\'ha actualitzat a la v%{version}. Mira què ha canviat.',
-                        updatedTitle: '%{script} actualitzat'
+                        updatedTitle: '%{script} actualitzat',
+                        viewVersionCode: 'Mostra el codi d\'aquesta versió',
                     },
                     dialog: {
                         sentBy: 'Enviat per %{script}'
@@ -2769,7 +2854,8 @@ class WmeAlertSystemCore {
                         title: 'Novinky ve vašich skriptech',
                         unavailable: 'Poznámky k této verzi nejsou k dispozici.',
                         updatedMessage: '%{script} byl aktualizován na v%{version}. Podívejte se, co se změnilo.',
-                        updatedTitle: '%{script} aktualizován'
+                        updatedTitle: '%{script} aktualizován',
+                        viewVersionCode: 'Zobrazit kód této verze',
                     },
                     dialog: {
                         sentBy: 'Odesláno skriptem %{script}'
@@ -2799,7 +2885,8 @@ class WmeAlertSystemCore {
                         title: 'Nyt i dine scripts',
                         unavailable: 'Noterne til denne version er ikke tilgængelige.',
                         updatedMessage: '%{script} er opdateret til v%{version}. Se, hvad der er ændret.',
-                        updatedTitle: '%{script} opdateret'
+                        updatedTitle: '%{script} opdateret',
+                        viewVersionCode: 'Vis kode for denne version',
                     },
                     dialog: {
                         sentBy: 'Sendt af %{script}'
@@ -2829,7 +2916,8 @@ class WmeAlertSystemCore {
                         title: 'Neuigkeiten in deinen Skripten',
                         unavailable: 'Die Hinweise zu dieser Version sind nicht verfügbar.',
                         updatedMessage: '%{script} wurde auf v%{version} aktualisiert. Sieh dir die Änderungen an.',
-                        updatedTitle: '%{script} aktualisiert'
+                        updatedTitle: '%{script} aktualisiert',
+                        viewVersionCode: 'Code dieser Version anzeigen',
                     },
                     dialog: {
                         sentBy: 'Gesendet von %{script}'
@@ -2859,7 +2947,8 @@ class WmeAlertSystemCore {
                         title: 'Τι νέο υπάρχει στα σενάριά σας',
                         unavailable: 'Οι σημειώσεις αυτής της έκδοσης δεν είναι διαθέσιμες.',
                         updatedMessage: 'Το %{script} ενημερώθηκε στην έκδοση v%{version}. Δείτε τι άλλαξε.',
-                        updatedTitle: 'Το %{script} ενημερώθηκε'
+                        updatedTitle: 'Το %{script} ενημερώθηκε',
+                        viewVersionCode: 'Προβολή του κώδικα αυτής της έκδοσης',
                     },
                     dialog: {
                         sentBy: 'Στάλθηκε από %{script}'
@@ -2890,7 +2979,8 @@ class WmeAlertSystemCore {
                         title: 'Novedades en tus scripts',
                         unavailable: 'Las notas de esta versión no están disponibles.',
                         updatedMessage: '%{script} se ha actualizado a la v%{version}. Mira qué ha cambiado.',
-                        updatedTitle: '%{script} actualizado'
+                        updatedTitle: '%{script} actualizado',
+                        viewVersionCode: 'Ver el código de esta versión',
                     },
                     dialog: {
                         sentBy: 'Enviado por %{script}'
@@ -2921,7 +3011,8 @@ class WmeAlertSystemCore {
                         title: 'Novedades en tus scripts',
                         unavailable: 'Las notas de esta versión no están disponibles.',
                         updatedMessage: '%{script} se actualizó a la v%{version}. Mira qué cambió.',
-                        updatedTitle: '%{script} actualizado'
+                        updatedTitle: '%{script} actualizado',
+                        viewVersionCode: 'Ver el código de esta versión',
                     },
                     dialog: {
                         sentBy: 'Enviado por %{script}'
@@ -2951,7 +3042,8 @@ class WmeAlertSystemCore {
                         title: 'Uut sinu skriptides',
                         unavailable: 'Selle versiooni märkmed pole saadaval.',
                         updatedMessage: '%{script} uuendati versioonile v%{version}. Vaata, mis muutus.',
-                        updatedTitle: '%{script} uuendatud'
+                        updatedTitle: '%{script} uuendatud',
+                        viewVersionCode: 'Vaata selle versiooni koodi',
                     },
                     dialog: {
                         sentBy: 'Saatis %{script}'
@@ -2982,7 +3074,8 @@ class WmeAlertSystemCore {
                         title: 'Berritasunak zure scriptetan',
                         unavailable: 'Bertsio honen oharrak ez daude erabilgarri.',
                         updatedMessage: '%{script} v%{version} bertsiora eguneratu da. Ikusi zer aldatu den.',
-                        updatedTitle: '%{script} eguneratuta'
+                        updatedTitle: '%{script} eguneratuta',
+                        viewVersionCode: 'Ikusi bertsio honen kodea',
                     },
                     dialog: {
                         sentBy: '%{script} scriptak bidalia'
@@ -3013,7 +3106,8 @@ class WmeAlertSystemCore {
                         title: 'تازه‌های اسکریپت‌های شما',
                         unavailable: 'یادداشت‌های این نسخه در دسترس نیست.',
                         updatedMessage: '%{script} به نسخه v%{version} به‌روزرسانی شد. ببینید چه چیزی تغییر کرده است.',
-                        updatedTitle: '%{script} به‌روزرسانی شد'
+                        updatedTitle: '%{script} به‌روزرسانی شد',
+                        viewVersionCode: 'مشاهده کد این نسخه',
                     },
                     dialog: {
                         sentBy: 'ارسال‌شده توسط %{script}'
@@ -3043,7 +3137,8 @@ class WmeAlertSystemCore {
                         title: 'Uutta skripteissäsi',
                         unavailable: 'Tämän version tiedot eivät ole saatavilla.',
                         updatedMessage: '%{script} päivitettiin versioon v%{version}. Katso, mikä muuttui.',
-                        updatedTitle: '%{script} päivitetty'
+                        updatedTitle: '%{script} päivitetty',
+                        viewVersionCode: 'Näytä tämän version koodi',
                     },
                     dialog: {
                         sentBy: 'Lähettäjä: %{script}'
@@ -3073,7 +3168,8 @@ class WmeAlertSystemCore {
                         title: 'Nouveautés de vos scripts',
                         unavailable: 'Les notes de cette version ne sont pas disponibles.',
                         updatedMessage: '%{script} a été mis à jour vers la v%{version}. Découvrez ce qui a changé.',
-                        updatedTitle: '%{script} mis à jour'
+                        updatedTitle: '%{script} mis à jour',
+                        viewVersionCode: 'Voir le code de cette version',
                     },
                     dialog: {
                         sentBy: 'Envoyé par %{script}'
@@ -3104,7 +3200,8 @@ class WmeAlertSystemCore {
                         title: 'Novidades nos teus scripts',
                         unavailable: 'As notas desta versión non están dispoñibles.',
                         updatedMessage: '%{script} actualizouse á v%{version}. Mira que cambiou.',
-                        updatedTitle: '%{script} actualizado'
+                        updatedTitle: '%{script} actualizado',
+                        viewVersionCode: 'Ver o código desta versión',
                     },
                     dialog: {
                         sentBy: 'Enviado por %{script}'
@@ -3135,7 +3232,8 @@ class WmeAlertSystemCore {
                         title: 'מה חדש בסקריפטים שלך',
                         unavailable: 'ההערות לגרסה זו אינן זמינות.',
                         updatedMessage: '%{script} עודכן לגרסה v%{version}. כדאי לראות מה השתנה.',
-                        updatedTitle: '%{script} עודכן'
+                        updatedTitle: '%{script} עודכן',
+                        viewVersionCode: 'הצג את הקוד של גרסה זו',
                     },
                     dialog: {
                         sentBy: 'נשלח על ידי %{script}'
@@ -3166,7 +3264,8 @@ class WmeAlertSystemCore {
                         title: 'आपकी स्क्रिप्ट में नया क्या है',
                         unavailable: 'इस संस्करण के नोट्स उपलब्ध नहीं हैं।',
                         updatedMessage: '%{script} को v%{version} पर अपडेट किया गया। देखें क्या बदला।',
-                        updatedTitle: '%{script} अपडेट हुआ'
+                        updatedTitle: '%{script} अपडेट हुआ',
+                        viewVersionCode: 'इस संस्करण का कोड देखें',
                     },
                     dialog: {
                         sentBy: '%{script} द्वारा भेजा गया'
@@ -3197,7 +3296,8 @@ class WmeAlertSystemCore {
                         title: 'Novosti u vašim skriptama',
                         unavailable: 'Bilješke za ovu verziju nisu dostupne.',
                         updatedMessage: '%{script} je ažuriran na v%{version}. Pogledajte što se promijenilo.',
-                        updatedTitle: '%{script} ažuriran'
+                        updatedTitle: '%{script} ažuriran',
+                        viewVersionCode: 'Prikaži kôd ove verzije',
                     },
                     dialog: {
                         sentBy: 'Poslao %{script}'
@@ -3227,7 +3327,8 @@ class WmeAlertSystemCore {
                         title: 'Újdonságok a szkriptjeidben',
                         unavailable: 'A verzió megjegyzései nem érhetők el.',
                         updatedMessage: 'A(z) %{script} frissült a v%{version} verzióra. Nézd meg, mi változott.',
-                        updatedTitle: 'A(z) %{script} frissült'
+                        updatedTitle: 'A(z) %{script} frissült',
+                        viewVersionCode: 'A verzió kódjának megtekintése',
                     },
                     dialog: {
                         sentBy: 'Küldte: %{script}'
@@ -3257,7 +3358,8 @@ class WmeAlertSystemCore {
                         title: 'Yang baru di skrip Anda',
                         unavailable: 'Catatan untuk versi ini tidak tersedia.',
                         updatedMessage: '%{script} diperbarui ke v%{version}. Lihat apa yang berubah.',
-                        updatedTitle: '%{script} diperbarui'
+                        updatedTitle: '%{script} diperbarui',
+                        viewVersionCode: 'Lihat kode versi ini',
                     },
                     dialog: {
                         sentBy: 'Dikirim oleh %{script}'
@@ -3287,7 +3389,8 @@ class WmeAlertSystemCore {
                         title: 'Novità nei tuoi script',
                         unavailable: 'Le note di questa versione non sono disponibili.',
                         updatedMessage: '%{script} è stato aggiornato alla v%{version}. Scopri cosa è cambiato.',
-                        updatedTitle: '%{script} aggiornato'
+                        updatedTitle: '%{script} aggiornato',
+                        viewVersionCode: 'Visualizza il codice di questa versione',
                     },
                     dialog: {
                         sentBy: 'Inviato da %{script}'
@@ -3317,7 +3420,8 @@ class WmeAlertSystemCore {
                         title: 'スクリプトの新機能',
                         unavailable: 'このバージョンのノートは利用できません。',
                         updatedMessage: '%{script} が v%{version} に更新されました。変更内容をご確認ください。',
-                        updatedTitle: '%{script} が更新されました'
+                        updatedTitle: '%{script} が更新されました',
+                        viewVersionCode: 'このバージョンのコードを表示',
                     },
                     dialog: {
                         sentBy: '送信元: %{script}'
@@ -3348,7 +3452,8 @@ class WmeAlertSystemCore {
                         title: 'სიახლეები თქვენს სკრიპტებში',
                         unavailable: 'ამ ვერსიის შენიშვნები მიუწვდომელია.',
                         updatedMessage: '%{script} განახლდა v%{version} ვერსიამდე. ნახეთ, რა შეიცვალა.',
-                        updatedTitle: '%{script} განახლდა'
+                        updatedTitle: '%{script} განახლდა',
+                        viewVersionCode: 'ამ ვერსიის კოდის ნახვა',
                     },
                     dialog: {
                         sentBy: 'გამომგზავნი: %{script}'
@@ -3379,7 +3484,8 @@ class WmeAlertSystemCore {
                         title: '스크립트의 새로운 기능',
                         unavailable: '이 버전의 노트를 사용할 수 없습니다.',
                         updatedMessage: '%{script}이(가) v%{version}(으)로 업데이트되었습니다. 변경 사항을 확인하세요.',
-                        updatedTitle: '%{script} 업데이트됨'
+                        updatedTitle: '%{script} 업데이트됨',
+                        viewVersionCode: '이 버전의 코드 보기',
                     },
                     dialog: {
                         sentBy: '보낸 스크립트: %{script}'
@@ -3410,7 +3516,8 @@ class WmeAlertSystemCore {
                         title: 'Naujovės jūsų scenarijuose',
                         unavailable: 'Šios versijos pastabos nepasiekiamos.',
                         updatedMessage: '%{script} atnaujintas į v%{version}. Peržiūrėkite, kas pasikeitė.',
-                        updatedTitle: '%{script} atnaujintas'
+                        updatedTitle: '%{script} atnaujintas',
+                        viewVersionCode: 'Peržiūrėti šios versijos kodą',
                     },
                     dialog: {
                         sentBy: 'Siuntė %{script}'
@@ -3441,7 +3548,8 @@ class WmeAlertSystemCore {
                         title: 'Jaunumi jūsu skriptos',
                         unavailable: 'Šīs versijas piezīmes nav pieejamas.',
                         updatedMessage: '%{script} ir atjaunināts uz v%{version}. Skatiet, kas mainījās.',
-                        updatedTitle: '%{script} atjaunināts'
+                        updatedTitle: '%{script} atjaunināts',
+                        viewVersionCode: 'Skatīt šīs versijas kodu',
                     },
                     dialog: {
                         sentBy: 'Nosūtīja %{script}'
@@ -3471,7 +3579,8 @@ class WmeAlertSystemCore {
                         title: 'Yang baharu dalam skrip anda',
                         unavailable: 'Nota untuk versi ini tidak tersedia.',
                         updatedMessage: '%{script} telah dikemas kini ke v%{version}. Lihat apa yang berubah.',
-                        updatedTitle: '%{script} dikemas kini'
+                        updatedTitle: '%{script} dikemas kini',
+                        viewVersionCode: 'Lihat kod versi ini',
                     },
                     dialog: {
                         sentBy: 'Dihantar oleh %{script}'
@@ -3501,7 +3610,8 @@ class WmeAlertSystemCore {
                         title: 'Nieuw in je scripts',
                         unavailable: 'De notities voor deze versie zijn niet beschikbaar.',
                         updatedMessage: '%{script} is bijgewerkt naar v%{version}. Bekijk wat er is veranderd.',
-                        updatedTitle: '%{script} bijgewerkt'
+                        updatedTitle: '%{script} bijgewerkt',
+                        viewVersionCode: 'Code van deze versie bekijken',
                     },
                     dialog: {
                         sentBy: 'Verzonden door %{script}'
@@ -3531,7 +3641,8 @@ class WmeAlertSystemCore {
                         title: 'Nytt i skriptene dine',
                         unavailable: 'Notatene for denne versjonen er ikke tilgjengelige.',
                         updatedMessage: '%{script} ble oppdatert til v%{version}. Se hva som er endret.',
-                        updatedTitle: '%{script} oppdatert'
+                        updatedTitle: '%{script} oppdatert',
+                        viewVersionCode: 'Vis koden for denne versjonen',
                     },
                     dialog: {
                         sentBy: 'Sendt av %{script}'
@@ -3561,7 +3672,8 @@ class WmeAlertSystemCore {
                         title: 'Nowości w Twoich skryptach',
                         unavailable: 'Informacje o tej wersji są niedostępne.',
                         updatedMessage: '%{script} został zaktualizowany do v%{version}. Zobacz, co się zmieniło.',
-                        updatedTitle: '%{script} zaktualizowany'
+                        updatedTitle: '%{script} zaktualizowany',
+                        viewVersionCode: 'Pokaż kod tej wersji',
                     },
                     dialog: {
                         sentBy: 'Wysłane przez %{script}'
@@ -3591,7 +3703,8 @@ class WmeAlertSystemCore {
                         title: 'Novidades nos seus scripts',
                         unavailable: 'As notas desta versão não estão disponíveis.',
                         updatedMessage: '%{script} foi atualizado para a v%{version}. Veja o que mudou.',
-                        updatedTitle: '%{script} atualizado'
+                        updatedTitle: '%{script} atualizado',
+                        viewVersionCode: 'Ver o código desta versão',
                     },
                     dialog: {
                         sentBy: 'Enviado por %{script}'
@@ -3621,7 +3734,8 @@ class WmeAlertSystemCore {
                         title: 'Novidades nos seus scripts',
                         unavailable: 'As notas desta versão não estão disponíveis.',
                         updatedMessage: '%{script} foi atualizado para a v%{version}. Veja o que mudou.',
-                        updatedTitle: '%{script} atualizado'
+                        updatedTitle: '%{script} atualizado',
+                        viewVersionCode: 'Ver o código desta versão',
                     },
                     dialog: {
                         sentBy: 'Enviado por %{script}'
@@ -3651,7 +3765,8 @@ class WmeAlertSystemCore {
                         title: 'Noutăți în scripturile tale',
                         unavailable: 'Notele pentru această versiune nu sunt disponibile.',
                         updatedMessage: '%{script} a fost actualizat la v%{version}. Vezi ce s-a schimbat.',
-                        updatedTitle: '%{script} actualizat'
+                        updatedTitle: '%{script} actualizat',
+                        viewVersionCode: 'Vezi codul acestei versiuni',
                     },
                     dialog: {
                         sentBy: 'Trimis de %{script}'
@@ -3682,7 +3797,8 @@ class WmeAlertSystemCore {
                         title: 'Что нового в ваших скриптах',
                         unavailable: 'Заметки к этой версии недоступны.',
                         updatedMessage: '%{script} обновлён до v%{version}. Посмотрите, что изменилось.',
-                        updatedTitle: '%{script} обновлён'
+                        updatedTitle: '%{script} обновлён',
+                        viewVersionCode: 'Посмотреть код этой версии',
                     },
                     dialog: {
                         sentBy: 'Отправлено скриптом %{script}'
@@ -3712,7 +3828,8 @@ class WmeAlertSystemCore {
                         title: 'Novinky vo vašich skriptoch',
                         unavailable: 'Poznámky k tejto verzii nie sú k dispozícii.',
                         updatedMessage: '%{script} bol aktualizovaný na v%{version}. Pozrite sa, čo sa zmenilo.',
-                        updatedTitle: '%{script} aktualizovaný'
+                        updatedTitle: '%{script} aktualizovaný',
+                        viewVersionCode: 'Zobraziť kód tejto verzie',
                     },
                     dialog: {
                         sentBy: 'Odoslal %{script}'
@@ -3743,7 +3860,8 @@ class WmeAlertSystemCore {
                         title: 'Novosti v vaših skriptih',
                         unavailable: 'Opombe za to različico niso na voljo.',
                         updatedMessage: '%{script} je posodobljen na v%{version}. Oglejte si, kaj se je spremenilo.',
-                        updatedTitle: '%{script} posodobljen'
+                        updatedTitle: '%{script} posodobljen',
+                        viewVersionCode: 'Prikaži kodo te različice',
                     },
                     dialog: {
                         sentBy: 'Poslal %{script}'
@@ -3773,7 +3891,8 @@ class WmeAlertSystemCore {
                         title: 'Nytt i dina skript',
                         unavailable: 'Anteckningarna för den här versionen är inte tillgängliga.',
                         updatedMessage: '%{script} har uppdaterats till v%{version}. Se vad som har ändrats.',
-                        updatedTitle: '%{script} uppdaterat'
+                        updatedTitle: '%{script} uppdaterat',
+                        viewVersionCode: 'Visa koden för den här versionen',
                     },
                     dialog: {
                         sentBy: 'Skickat av %{script}'
@@ -3804,7 +3923,8 @@ class WmeAlertSystemCore {
                         title: 'สิ่งใหม่ในสคริปต์ของคุณ',
                         unavailable: 'บันทึกของเวอร์ชันนี้ไม่พร้อมใช้งาน',
                         updatedMessage: '%{script} ได้รับการอัปเดตเป็น v%{version} แล้ว ดูว่ามีอะไรเปลี่ยนไป',
-                        updatedTitle: 'อัปเดต %{script} แล้ว'
+                        updatedTitle: 'อัปเดต %{script} แล้ว',
+                        viewVersionCode: 'ดูโค้ดของเวอร์ชันนี้',
                     },
                     dialog: {
                         sentBy: 'ส่งโดย %{script}'
@@ -3835,7 +3955,8 @@ class WmeAlertSystemCore {
                         title: 'Betiklerinizdeki yenilikler',
                         unavailable: 'Bu sürümün notları mevcut değil.',
                         updatedMessage: '%{script}, v%{version} sürümüne güncellendi. Nelerin değiştiğini görün.',
-                        updatedTitle: '%{script} güncellendi'
+                        updatedTitle: '%{script} güncellendi',
+                        viewVersionCode: 'Bu sürümün kodunu görüntüle',
                     },
                     dialog: {
                         sentBy: 'Gönderen: %{script}'
@@ -3865,7 +3986,8 @@ class WmeAlertSystemCore {
                         title: 'Що нового у ваших скриптах',
                         unavailable: 'Нотатки до цієї версії недоступні.',
                         updatedMessage: '%{script} оновлено до v%{version}. Перегляньте, що змінилося.',
-                        updatedTitle: '%{script} оновлено'
+                        updatedTitle: '%{script} оновлено',
+                        viewVersionCode: 'Переглянути код цієї версії',
                     },
                     dialog: {
                         sentBy: 'Надіслано скриптом %{script}'
@@ -3895,7 +4017,8 @@ class WmeAlertSystemCore {
                         title: 'Điểm mới trong tập lệnh của bạn',
                         unavailable: 'Ghi chú cho phiên bản này không có sẵn.',
                         updatedMessage: '%{script} đã được cập nhật lên v%{version}. Xem những gì đã thay đổi.',
-                        updatedTitle: 'Đã cập nhật %{script}'
+                        updatedTitle: 'Đã cập nhật %{script}',
+                        viewVersionCode: 'Xem mã của phiên bản này',
                     },
                     dialog: {
                         sentBy: 'Gửi bởi %{script}'
@@ -3926,7 +4049,8 @@ class WmeAlertSystemCore {
                         title: '脚本新功能',
                         unavailable: '此版本的说明不可用。',
                         updatedMessage: '%{script} 已更新到 v%{version}。查看更改内容。',
-                        updatedTitle: '%{script} 已更新'
+                        updatedTitle: '%{script} 已更新',
+                        viewVersionCode: '查看此版本的代码',
                     },
                     dialog: {
                         sentBy: '来自 %{script}'
@@ -3957,7 +4081,8 @@ class WmeAlertSystemCore {
                         title: '指令碼新功能',
                         unavailable: '此版本的說明無法使用。',
                         updatedMessage: '%{script} 已更新至 v%{version}。查看變更內容。',
-                        updatedTitle: '%{script} 已更新'
+                        updatedTitle: '%{script} 已更新',
+                        viewVersionCode: '檢視此版本的程式碼',
                     },
                     dialog: {
                         sentBy: '來自 %{script}'
@@ -3988,7 +4113,8 @@ class WmeAlertSystemCore {
                         title: 'What\'s new in your scripts',
                         unavailable: 'The notes for this version are not available.',
                         updatedMessage: '%{script} was updated to v%{version}. See what changed.',
-                        updatedTitle: '%{script} updated'
+                        updatedTitle: '%{script} updated',
+                        viewVersionCode: 'View this version\'s code',
                     },
                     dialog: {
                         sentBy: 'Sent by %{script}'

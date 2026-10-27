@@ -6,7 +6,7 @@
 // @author       luan_tavares_127
 // @match        https://*.waze.com/*editor*
 // @exclude      https://*.waze.com/*user/*editor/*
-// @require      https://update.greasyfork.org/scripts/<id>/<version>/WME%20Alert%20System.js
+// @require      file:///C:/Users/luan_/OneDrive/Área de Trabalho/Particular/Waze/WME-Alert-System/wmeAlertSystem.js
 // @grant        unsafeWindow
 // ==/UserScript==
 

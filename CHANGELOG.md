@@ -4,9 +4,10 @@ All notable changes to WME Alert System. Aimed at script authors who `@require` 
 
 Format based on [Keep a Changelog](https://keepachangelog.com/). Changes that break the public API (`register()` and the client) are marked **Breaking**.
 
-## [Unreleased]
+## [1.1.0] - 2026-10-27
 
 ### Added
+- Changelog dialog: the older versions loaded by "See previous changes" are cards (version and date on top, notes below), like the history of WME Sidebar Wazeopedia; the notes of the update stay plain text. When the changelog entry has a `versionId` and the script gave `links.greasyFork`, the version links to `<greasyFork>?version=<versionId>` (tooltip `changelog.viewVersionCode`, translated).
 - `notification.add({ keepOpen })`: by default an `action` button now closes the bell popup before the handler runs; `keepOpen: true` leaves it open.
 
 ### Changed
