@@ -8,7 +8,7 @@
 - Anything about WME internals not in `AGENTS.md` §4 is unknown: ask the user for a console/DevTools capture instead of guessing (selectors, request URLs, cache shapes).
 - Nothing runs locally: verification = `node scripts/check.mjs` + the manual checklist (skill `test-in-wme`). Say so instead of claiming something was tested.
 - Work follows `ROADMAP.md`: run the phase with the model/effort it names, and update its Status column when the phase ends.
-- The user writes in Portuguese (pt-BR): reply in pt-BR. Commit only when asked; commit messages in pt-BR.
+- The user writes in Portuguese (pt-BR): reply in pt-BR. Commit only when asked; commit messages in English.
 
 | Kind | Name | Use for |
 |---|---|---|

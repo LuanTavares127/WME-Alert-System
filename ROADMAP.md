@@ -203,7 +203,7 @@ Feito (decisões do usuário em 2026-10-25):
 
 **Modelo:** Haiku 5.5 · **Esforço:** baixo · **Status:** ✅ Concluída (2026-10-26)
 
-- `git init`, `.gitignore`, primeiro commit em pt-BR, branch `development` para o trabalho e `main` para as versões publicadas.
+- `git init`, `.gitignore`, primeiro commit em inglês, branch `development` para o trabalho e `main` para as versões publicadas.
 - Depois disso, adotar as skills `finish-change` e `release` dos outros projetos, adaptadas.
 
 ## Fase 7 — Primeira versão pública
