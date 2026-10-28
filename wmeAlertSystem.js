@@ -12,17 +12,6 @@
 // @grant               unsafeWindow
 // ==/UserScript==
 
-/* @TODO:
-    - Confirm that ours waits in the queue while a native WME dialog is open (not reproduced in phase 5a).
- */
-
-/* @Changelog:
-    - Unreleased: a notification's action closes the bell popup first (`keepOpen: true` keeps it open); one changelog notice per script
-      (a new update replaces the unopened one, keeping every version since the last one seen).
-    - First version of the library: queued dialogs (wz-dialog) and snackbars (wz-snackbar), notifications in the native bell
-      (React Query, with a native-markup fallback), unified changelog, map confirmation and inline alert.
- */
-
 class WmeAlertSystemCore {
     /**
      * Library version: the newest copy loaded by any script on the page is the one started.
