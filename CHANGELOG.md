@@ -4,6 +4,15 @@ All notable changes to WME Alert System. Aimed at script authors who `@require` 
 
 Format based on [Keep a Changelog](https://keepachangelog.com/). Changes that break the public API (`register()` and the client) are marked **Breaking**.
 
+## [1.3.0] - Unreleased
+
+### Added
+- Bell notifications and the last version seen are shared by every WME environment (production and beta): when the script that `@require`s the library grants `GM_getValue` and `GM_setValue`, its copy of the library lends that Tampermonkey storage with `register()` (no code change in the script). A notification created, replaced or deleted in one environment is the same in the other, live when the script also grants `GM_addValueChangeListener` (otherwise on the next load). On the first load of each environment, what that environment had in `localStorage` is merged in (same id: the newest wins). Without those grants nothing changes (`localStorage`, one list per environment).
+- The last version seen is still written to `localStorage.wmeAlertSystemSeenVersions` too, for scripts that read it before registering.
+
+### Changed
+- Notifications last 15 days (was 30). Those already stored keep their date.
+
 ## [1.2.1] - 2026-10-27
 
 ### Fixed

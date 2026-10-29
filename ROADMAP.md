@@ -22,6 +22,7 @@ Contexto técnico completo em `AGENTS.md`. Os números de linha mudam com o temp
 | 7a | `CHANGELOG.md` no repositório (sem aviso ao usuário final) e checagem no `check.mjs` | Sonnet 5.5 | baixo | 5b | ✅ Concluída |
 | 7b | Release 1.0.0 da biblioteca no Greasy Fork (tipo "library"), `devVersion = false` | Sonnet 5.5 | baixo | 7a, 6 | 🚧 Em andamento: v1.0.0 no `main`, página criada no Greasy Fork (id 602363) só com o modelo vazio do Tampermonkey; falta enviar o código do `main` e testar o `@require` publicado |
 | 8 | Changelog em cards (uma versão por card, com link para o código da versão) | Sonnet 5.5 | médio | 7b | 🚧 Código pronto (v1.1.0); falta testar via CDP, publicar e passar o id do `@require` |
+| 9 | Sininho e versão vista compartilhados entre produção e beta (armazenamento do Tampermonkey emprestado por cada script) + expiração de 15 dias | **Opus 5.5** | alto | — | 🧪 Implementada (v1.3.0, 2026-10-29): protótipo e teste ponta a ponta via CDP (25/25). Falta: publicar no Greasy Fork, atualizar o `@require` do Speed Display, Chat Plus e Wazeopedia (este também precisa de `@grant GM_addValueChangeListener` para sincronizar ao vivo) |
 
 **Legenda de status:** ⏳ Pendente · 🚧 Em andamento · 🧪 Implementada, aguardando teste no WME · ✅ Concluída (critério de aceite verificado) · ⏸️ Adiada (decisão do usuário; nada depende dela) · ⛔ Bloqueada (dizer o motivo).
 
