@@ -157,6 +157,16 @@ Loading through Tampermonkey `@require file:///…` works (Beta, 2026-10-25) onc
 
 Nothing runs locally besides `node scripts/check.mjs`. Real verification = Tampermonkey on https://www.waze.com/editor (logged in): skill `test-in-wme`. Say what was not verified instead of claiming it works.
 
+## 7b. Merging development into main
+
+`main` and `development` have **unrelated histories** (`main` is a curated history with one commit per release and none of the dev-only files), so a plain `git merge` fails ("refusing to merge unrelated histories"). Never use `--allow-unrelated-histories`. When the maintainer asks for "merge dev into main", do this (user decision, 2026-10-29):
+
+1. `git checkout main`, then `git checkout development -- wmeAlertSystem.js CHANGELOG.md readme.md` (only the release files; `scripts/` and `examples/` too if they changed). Never bring `.claude/`, `AGENTS.md`, `CLAUDE.md` or `ROADMAP.md` to `main`.
+2. In `wmeAlertSystem.js`: set `this.devVersion = false` and delete the `/* @TODO */` and `/* @Changelog */` header blocks. In `CHANGELOG.md`: replace `Unreleased` with the release date (`YYYY-MM-DD`).
+3. `node scripts/check.mjs --release` must say OK.
+4. One commit on `main`: `WME Alert System vX.Y.Z: <summary>` (English, with a short bullet list). **Do not push** until the maintainer explicitly says so.
+5. `git checkout development` again.
+
 ## 8. References
 
 - WME SDK docs: https://web-assets.waze.com/wme_sdk_docs/production/latest/index.html · beta: https://web-assets.waze.com/wme_sdk_docs/beta/latest/index.html · typings: `…/production/latest/wme-sdk-typings.tgz`.
