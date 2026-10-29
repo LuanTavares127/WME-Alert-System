@@ -2,7 +2,7 @@
 // @name                WME Alert System
 // @name:pt-BR          WME Alert System
 // @namespace           https://greasyfork.org/users/luan_tavares_127
-// @version             1.2.1
+// @version             1.3.0
 // @description         Shared library for WME userscripts: native dialogs, snackbars, bell notifications and a unified changelog, queued so scripts don't overlap.
 // @description:pt-BR   Biblioteca compartilhada para userscripts do WME: diálogos, snackbars, notificações no sininho e changelog unificado, nativos e enfileirados para os scripts não se sobreporem.
 // @author              luan_tavares_127
@@ -19,7 +19,7 @@ class WmeAlertSystemCore {
      * @returns {string}
      */
     static get VERSION() {
-        return '1.2.1';
+        return '1.3.0';
     }
 
     /**
@@ -45,7 +45,7 @@ class WmeAlertSystemCore {
 
         this.limits = {
             notificationsPerScript: 15,
-            notificationLifetime: 30 * 24 * 60 * 60 * 1000,
+            notificationLifetime: 15 * 24 * 60 * 60 * 1000,
             snackbarDelay: 5000,
             snackbarRequeues: 3,
             retryDelay: 1000,
@@ -205,7 +205,8 @@ class WmeAlertSystemCore {
     createApi() {
         return Object.freeze({
             version: this.scriptVersion,
-            register: options => this.registerScript(options)
+            // `storage` is added by the script's own copy of the library (bootstrapWmeAlertSystem), never by the script
+            register: (options, storage) => this.registerScript(options, storage)
         });
     }
 
@@ -217,10 +218,11 @@ class WmeAlertSystemCore {
      * @param {string} [options.version] - Current version (needed for the changelog).
      * @param {{mode?: 'dialog'|'notification'|'none', entries?: Object[], loader?: function(): Promise<Object[]>}} [options.changelog] - Release notes.
      * @param {{greasyFork?: string, discuss?: string}} [options.links] - Links shown in the changelog.
+     * @param {Object} [storage] - The script's Tampermonkey storage, lent by its copy of the library (see `createScriptStorage`).
      *
      * @returns {Object} The script client.
      */
-    registerScript(options = {}) {
+    registerScript(options = {}, storage = null) {
         let { scriptId, scriptName, version = '', changelog = {}, links = {} } = options;
 
         // '__proto__' would write to Object.prototype through the per-script storage maps
@@ -246,12 +248,16 @@ class WmeAlertSystemCore {
                 greasyFork: this.sanitizeUrl(links?.greasyFork),
                 discuss: this.sanitizeUrl(links?.discuss)
             },
+            storage: this.createScriptStorage(storage),
             actionHandlers: new Map()
         };
 
         entry.client = this.createClient(entry);
 
         this.registry.set(scriptId, entry);
+
+        // Before the version check: the last version seen may be the one stored by another WME environment
+        this.loadScriptStorage(entry);
 
         this.checkScriptVersion(entry);
 
@@ -875,7 +881,7 @@ class WmeAlertSystemCore {
     // ==========================================
 
     /**
-     * Adds (or replaces) a notification in the WME bell; it stays until deleted or for 30 days.
+     * Adds (or replaces) a notification in the WME bell; it stays until deleted or for 15 days.
      * @param {Object} entry - The calling script.
      * @param {Object} [options={}] - The notification.
      * @param {string} [options.id] - Id inside the script; the same id replaces the notification.
@@ -936,7 +942,7 @@ class WmeAlertSystemCore {
         this.notifications = this.notifications.filter(item => item.id != id && !dropped.has(item.id));
         this.notifications.push(record);
 
-        this.saveNotifications();
+        this.saveNotifications(entry.scriptId);
         this.refreshBell();
 
         return localId;
@@ -967,7 +973,7 @@ class WmeAlertSystemCore {
     clearNotifications(entry) {
         this.notifications = this.notifications.filter(item => item.scriptId != entry.scriptId);
 
-        this.saveNotifications();
+        this.saveNotifications(entry.scriptId);
         this.refreshBell();
     }
 
@@ -1008,14 +1014,14 @@ class WmeAlertSystemCore {
      * @returns {void}
      */
     deleteNotificationRecord(id) {
-        let count = this.notifications.length;
+        let record = this.notifications.find(item => item.id == id);
+
+        if (!record)
+            return;
 
         this.notifications = this.notifications.filter(item => item.id != id);
 
-        if (this.notifications.length == count)
-            return;
-
-        this.saveNotifications();
+        this.saveNotifications(record.scriptId);
         this.refreshBell();
     }
 
@@ -1658,8 +1664,7 @@ class WmeAlertSystemCore {
         if (entry.changelog.mode == 'none' || !entry.version)
             return;
 
-        let seen = this.readStorage(this.storageKeys.seenVersions, {});
-        let last = seen && Object.hasOwn(seen, entry.scriptId) ? String(seen[entry.scriptId]) : '';
+        let last = this.readSeenVersion(entry);
 
         if (!last || !this.isVersionGreater(entry.version, last)) {
             if (last != entry.version)
@@ -2026,7 +2031,21 @@ class WmeAlertSystemCore {
     }
 
     /**
-     * Stores the last version of a script whose notes were shown.
+     * Returns the last version of a script whose notes were shown: the newest of this environment's and the shared one.
+     * @param {Object} entry - The registry entry.
+     *
+     * @returns {string} Empty when none is stored (first install).
+     */
+    readSeenVersion(entry) {
+        let local  = this.getStoredVersion(this.readStorage(this.storageKeys.seenVersions, {}), entry.scriptId);
+        let shared = entry.storage ? this.getStoredVersion(this.readScriptStorage(entry, this.storageKeys.seenVersions, {}), entry.scriptId) : '';
+
+        return !local || (shared && this.isVersionGreater(shared, local)) ? shared : local;
+    }
+
+    /**
+     * Stores the last version of a script whose notes were shown: in localStorage (scripts read it there before registering) and in
+     * its Tampermonkey storage, when it lent one.
      * @param {string} scriptId - The script.
      * @param {string} version - The version.
      *
@@ -2034,11 +2053,34 @@ class WmeAlertSystemCore {
      */
     saveSeenVersion(scriptId, version) {
         let stored = this.readStorage(this.storageKeys.seenVersions, {});
-        let seen   = stored && typeof stored == 'object' && !Array.isArray(stored) ? stored : {};
+        let seen   = this.isPlainObject(stored) ? stored : {};
 
         seen[scriptId] = version;
 
         this.writeStorage(this.storageKeys.seenVersions, seen);
+
+        let entry = this.registry.get(scriptId);
+
+        if (!entry?.storage)
+            return;
+
+        let sharedStored = this.readScriptStorage(entry, this.storageKeys.seenVersions, {});
+        let shared       = this.isPlainObject(sharedStored) ? sharedStored : {};
+
+        shared[scriptId] = version;
+
+        this.writeScriptStorage(entry, this.storageKeys.seenVersions, shared);
+    }
+
+    /**
+     * Reads a script's version from a stored `{ scriptId: version }` map.
+     * @param {*} stored - The stored map.
+     * @param {string} scriptId - The script.
+     *
+     * @returns {string} Empty when missing.
+     */
+    getStoredVersion(stored, scriptId) {
+        return this.isPlainObject(stored) && Object.hasOwn(stored, scriptId) && stored[scriptId] ? String(stored[scriptId]) : '';
     }
 
     // ==========================================
@@ -2159,27 +2201,163 @@ class WmeAlertSystemCore {
     // ==========================================
 
     /**
-     * Loads the stored notifications, dropping the expired and malformed ones.
+     * Loads the notifications stored in localStorage, dropping the expired and malformed ones. Those of a script with its own storage
+     * (written by an older copy of the library in another tab) are moved there.
      *
      * @returns {void}
      */
     loadNotifications() {
         let stored = this.readStorage(this.storageKeys.notifications, []);
-        let now    = Date.now();
+        let list   = Array.isArray(stored) ? stored : [];
+        let valid  = this.readStoredNotifications(list);
+        let local  = valid.filter(item => !this.hasOwnStorage(item.scriptId));
+        let moved  = valid.filter(item => this.hasOwnStorage(item.scriptId));
 
-        this.notifications = (Array.isArray(stored) ? stored : []).filter(item => this.isOwnNotificationId(item?.id) && typeof item.scriptId == 'string' && item.expiresAt > now);
+        this.notifications = [...this.notifications.filter(item => this.hasOwnStorage(item.scriptId)), ...local];
 
-        if (this.notifications.length != (Array.isArray(stored) ? stored.length : 0))
+        new Set(moved.map(item => item.scriptId)).forEach(scriptId => this.mergeScriptNotifications(this.registry.get(scriptId), moved.filter(item => item.scriptId == scriptId)));
+
+        if (local.length != list.length)
             this.saveNotifications();
     }
 
     /**
-     * Saves the notifications.
+     * Saves the notifications: a script's own in the Tampermonkey storage it lent, the others in localStorage.
+     * @param {string} [scriptId] - The script whose notifications changed; none = the localStorage ones.
      *
      * @returns {void}
      */
-    saveNotifications() {
-        this.writeStorage(this.storageKeys.notifications, this.notifications);
+    saveNotifications(scriptId) {
+        let entry = scriptId ? this.registry.get(scriptId) : null;
+
+        if (!entry?.storage) {
+            this.writeStorage(this.storageKeys.notifications, this.notifications.filter(item => !this.hasOwnStorage(item.scriptId)));
+
+            return;
+        }
+
+        let stored = this.readScriptStorage(entry, this.storageKeys.notifications, {});
+        let shared = this.isPlainObject(stored) ? stored : {};
+
+        shared[scriptId] = this.notifications.filter(item => item.scriptId == scriptId);
+
+        this.writeScriptStorage(entry, this.storageKeys.notifications, shared);
+    }
+
+    /**
+     * Keeps the valid, unexpired notifications of a stored list.
+     * @param {*} stored - The stored list.
+     * @param {string} [scriptId] - Keep only this script's.
+     *
+     * @returns {Object[]}
+     */
+    readStoredNotifications(stored, scriptId) {
+        let now = Date.now();
+
+        return (Array.isArray(stored) ? stored : []).filter(item => this.isOwnNotificationId(item?.id) && typeof item.scriptId == 'string' && item.expiresAt > now && (!scriptId || item.scriptId == scriptId));
+    }
+
+    /**
+     * Moves a script's notifications and last version seen from this environment's localStorage to the Tampermonkey storage it lent
+     * (one for every WME environment: production and beta), then follows the changes made in other tabs and environments.
+     * @param {Object} entry - The registry entry.
+     *
+     * @returns {void}
+     */
+    loadScriptStorage(entry) {
+        if (!entry.storage)
+            return;
+
+        let { scriptId } = entry;
+
+        // Both places keep the newest version: scripts read the localStorage one before registering
+        let localSeen  = this.getStoredVersion(this.readStorage(this.storageKeys.seenVersions, {}), scriptId);
+        let sharedSeen = this.getStoredVersion(this.readScriptStorage(entry, this.storageKeys.seenVersions, {}), scriptId);
+        let seen       = this.readSeenVersion(entry);
+
+        if (seen && (localSeen != seen || sharedSeen != seen))
+            this.saveSeenVersion(scriptId, seen);
+
+        // This environment's notifications (loaded from localStorage at start) join the shared ones
+        let local = this.notifications.filter(item => item.scriptId == scriptId);
+
+        this.mergeScriptNotifications(entry);
+
+        // Drops the moved ones from localStorage
+        if (local.length)
+            this.saveNotifications();
+
+        if (!entry.storage.onChange)
+            return;
+
+        try {
+            entry.storage.onChange(this.storageKeys.notifications, (key, oldValue, newValue, remote) => {
+                if (!remote)
+                    return;
+
+                let list = this.isPlainObject(newValue) ? this.cloneJson(newValue[scriptId]) : [];
+
+                this.notifications = [...this.notifications.filter(item => item.scriptId != scriptId), ...this.readStoredNotifications(list, scriptId)];
+
+                this.refreshBell();
+            });
+
+        } catch (error) {
+            this.logDebug(`Could not follow the notifications of ${ entry.scriptName } in other tabs: ${ error.message }`, true, 'warn');
+        }
+    }
+
+    /**
+     * Joins a script's notifications in memory (and the extra ones given) to those in the Tampermonkey storage it lent, then saves the
+     * result: on the same id the newest wins, past the per-script limit the oldest go.
+     * @param {Object} entry - The registry entry (with a lent storage).
+     * @param {Object[]} [records=[]] - Other records of the script, found in this environment's localStorage.
+     *
+     * @returns {void}
+     */
+    mergeScriptNotifications(entry, records = []) {
+        let { scriptId } = entry;
+
+        let stored = this.readScriptStorage(entry, this.storageKeys.notifications, {});
+        let raw    = this.isPlainObject(stored) && Array.isArray(stored[scriptId]) ? stored[scriptId] : [];
+        let merged = new Map(this.readStoredNotifications(raw, scriptId).map(item => [item.id, item]));
+
+        [...this.notifications.filter(item => item.scriptId == scriptId), ...records].forEach(item => {
+            if (!merged.has(item.id) || item.timestamp > merged.get(item.id).timestamp)
+                merged.set(item.id, item);
+        });
+
+        let list = [...merged.values()].sort((a, b) => b.timestamp - a.timestamp).slice(0, this.limits.notificationsPerScript);
+
+        this.notifications = [...this.notifications.filter(item => item.scriptId != scriptId), ...list];
+
+        if (JSON.stringify(list) != JSON.stringify(raw))
+            this.saveNotifications(scriptId);
+
+        this.refreshBell();
+    }
+
+    /**
+     * Checks the Tampermonkey storage a script's copy of the library lends with its registration.
+     * @param {*} storage - `{ get, set, onChange }`: the script's GM_getValue, GM_setValue and GM_addValueChangeListener.
+     *
+     * @returns {{get: function, set: function, onChange: function|null}|null} Null: the script uses localStorage.
+     */
+    createScriptStorage(storage) {
+        if (typeof storage?.get != 'function' || typeof storage?.set != 'function')
+            return null;
+
+        return { get: storage.get, set: storage.set, onChange: typeof storage.onChange == 'function' ? storage.onChange : null };
+    }
+
+    /**
+     * Tells whether a registered script keeps its data in its own Tampermonkey storage.
+     * @param {string} scriptId - The script.
+     *
+     * @returns {boolean}
+     */
+    hasOwnStorage(scriptId) {
+        return Boolean(this.registry.get(scriptId)?.storage);
     }
 
     /**
@@ -2228,6 +2406,44 @@ class WmeAlertSystemCore {
 
         } catch (error) {
             this.logDebug(`Could not save ${ key }: ${ error.message }`, true, 'warn');
+        }
+    }
+
+    /**
+     * Reads a value from the Tampermonkey storage a script lent.
+     * @param {Object} entry - The registry entry.
+     * @param {string} key - Storage key.
+     * @param {*} fallback - Value when missing or unreadable.
+     *
+     * @returns {*} A copy: the manager may hand out its cached object.
+     */
+    readScriptStorage(entry, key, fallback) {
+        try {
+            let value = entry.storage.get(key, null);
+
+            return value == null ? fallback : JSON.parse(JSON.stringify(value));
+
+        } catch (error) {
+            this.logDebug(`Could not read ${ key } of ${ entry.scriptName }: ${ error.message }`, true, 'warn');
+
+            return fallback;
+        }
+    }
+
+    /**
+     * Writes a value to the Tampermonkey storage a script lent.
+     * @param {Object} entry - The registry entry.
+     * @param {string} key - Storage key.
+     * @param {*} value - JSON-serializable value.
+     *
+     * @returns {void}
+     */
+    writeScriptStorage(entry, key, value) {
+        try {
+            entry.storage.set(key, value);
+
+        } catch (error) {
+            this.logDebug(`Could not save ${ key } of ${ entry.scriptName }: ${ error.message }`, true, 'warn');
         }
     }
 
@@ -2418,6 +2634,16 @@ class WmeAlertSystemCore {
         } catch (error) {
             throw new TypeError(`WME Alert System: notification data must be JSON-serializable (${ error.message }).`);
         }
+    }
+
+    /**
+     * Tells whether a value is a plain `{ key: value }` object (not null, not an array).
+     * @param {*} value - The value.
+     *
+     * @returns {boolean}
+     */
+    isPlainObject(value) {
+        return value != null && typeof value == 'object' && !Array.isArray(value);
     }
 
     /**
@@ -4112,8 +4338,9 @@ class WmeAlertSystemCore {
 }
 
 /**
- * Registers this copy of the library and returns the page-wide handle. Every script that `@require`s the library runs this; only the
- * newest copy (by version) starts, once the WME SDK exists.
+ * Registers this copy of the library and returns the handle of the script that `@require`s it. Every such script runs this; only the
+ * newest copy (by version) starts, once the WME SDK exists. When the script grants GM_getValue and GM_setValue, its handle lends that
+ * storage with each `register()`, so the script's notifications and last version seen are shared by every WME environment.
  *
  * @returns {{ready: function(): Promise<Object>, version: string|null}} `WmeAlertSystem`.
  */
@@ -4189,7 +4416,27 @@ function bootstrapWmeAlertSystem() {
 
     waitForSdk();
 
-    return pageWindow.WmeAlertSystem;
+    let handle = pageWindow.WmeAlertSystem;
+
+    // The GM functions of the script that @requires this copy (undefined when not granted); they keep writing to that script's
+    // storage even when the core runs in another script's copy
+    /* global GM_getValue, GM_setValue, GM_addValueChangeListener */
+    let storage = typeof GM_getValue == 'function' && typeof GM_setValue == 'function'
+        ? Object.freeze({ get: GM_getValue, set: GM_setValue, onChange: typeof GM_addValueChangeListener == 'function' ? GM_addValueChangeListener : null })
+        : null;
+
+    if (!storage)
+        return handle;
+
+    let api = null;
+
+    // An older core ignores the second argument: the script then keeps using localStorage
+    return Object.freeze({
+        ready: () => handle.ready().then(core => api ??= Object.freeze({ ...core, register: options => core.register(options, storage) })),
+        get version() {
+            return handle.version;
+        }
+    });
 }
 
 // The handle scripts use after `@require` (the page also gets it as `window.WmeAlertSystem`)

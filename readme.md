@@ -16,6 +16,9 @@ Copy the versioned `@require` URL from the library's page on Greasy Fork: https:
 ```js
 // @require https://update.greasyfork.org/scripts/602363/<version-id>/WME%20Alert%20System.js
 // @grant   unsafeWindow
+// @grant   GM_getValue
+// @grant   GM_setValue
+// @grant   GM_addValueChangeListener
 
 const alerts = (await WmeAlertSystem.ready()).register({
     scriptId: 'my-script',
@@ -37,9 +40,13 @@ alerts.notification.onAction('open-report', notification => openReport(notificat
 alerts.notification.add({ id: 'report-42', title: 'Report ready', message: 'Your report finished.', buttonText: 'Open', action: 'open-report', data: { id: 42 } });
 ```
 
+The three `GM_*` grants are optional: they share the bell between production and beta (see below). Keep metadata lines free of trailing comments: the userscript manager would read the comment as part of the grant name.
+
 Changelog entries use the shape `{ version, date: 'YYYY-MM-DD', changes: { en: '<html>', 'pt-BR': '<html>', … } }`, newest first.
 
 Texts (`title`, `text`, labels, notification fields) are plain text. `content` and changelog `changes` are trusted HTML from your own script.
+
+Notifications stay in the bell until deleted or for 15 days. When your script grants `GM_getValue` and `GM_setValue`, the library keeps your script's notifications and last version seen in your script's Tampermonkey storage, so production (`www.waze.com`) and beta (`beta.waze.com`) show the same bell: a notice deleted in one is gone in the other, and an update notice appears once, not once per environment. Add `GM_addValueChangeListener` to sync open tabs live. No code change is needed; without these grants each environment keeps its own list (`localStorage`).
 
 Pressing a notification's `action` button closes the bell popup before your handler runs; pass `keepOpen: true` to `add()` to leave it open.
 
