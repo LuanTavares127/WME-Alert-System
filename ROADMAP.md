@@ -193,7 +193,7 @@ Feito (decisões do usuário em 2026-10-25):
   - centro do mapa sem promessa;
   - mesclagem sem loop.
 - **Checklist (seções afetadas) no Beta v2.376-1**, código novo carregado pelo Tampermonkey e cliques reais via CDP: 21/21.
-  - Diálogos: fila em ordem; OK, × e Esc; confirm true/false; `close(id)` antes de aparecer; "Sent by".
+  - Diálogos: fila em ordem; OK, × e Esc; confirm true/false; `close(id)` antes de aparecer.
   - i18n: ar com RTL (título termina antes do ×), pt-BR e es; aviso de changelog en → es no sininho.
   - Extras: balão do mapa (aplicar, cancelar, 2ª chamada, fora da tela → diálogo, conteúdo como texto) e `inline.alert`.
   - Não reproduzido: diálogo nativo do WME aberto com o nosso na fila (ficou no `@TODO` do arquivo).

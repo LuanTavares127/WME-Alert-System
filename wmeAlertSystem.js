@@ -2,7 +2,7 @@
 // @name                WME Alert System
 // @name:pt-BR          WME Alert System
 // @namespace           https://greasyfork.org/users/luan_tavares_127
-// @version             1.3.0
+// @version             1.3.1
 // @description         Shared library for WME userscripts: native dialogs, snackbars, bell notifications and a unified changelog, queued so scripts don't overlap.
 // @description:pt-BR   Biblioteca compartilhada para userscripts do WME: diálogos, snackbars, notificações no sininho e changelog unificado, nativos e enfileirados para os scripts não se sobreporem.
 // @author              luan_tavares_127
@@ -13,10 +13,10 @@
 // ==/UserScript==
 
 /* @TODO:
-    - Confirm that ours waits in the queue while a native WME dialog is open (not reproduced in phase 5a).
  */
 
 /* @Changelog:
+    - 1.3.1: dialogs no longer show the "Sent by" line.
     - 1.3.0: with GM_getValue/GM_setValue granted to the script, its bell notifications and last version seen live in its Tampermonkey
       storage, shared by every WME environment (production and beta) and synced live (GM_addValueChangeListener); notifications
       last 15 days (was 30).
@@ -33,7 +33,7 @@ class WmeAlertSystemCore {
      * @returns {string}
      */
     static get VERSION() {
-        return '1.3.0';
+        return '1.3.1';
     }
 
     /**
@@ -67,7 +67,7 @@ class WmeAlertSystemCore {
             changelogTimeout: 15000
         };
 
-        // TODO: There is no official replacement in the SDK yet (the bell is React Query over `Feed/Notifications`, WME v2.374)
+        // TODO: There is no official replacement in the SDK yet
         this.nativeNotification = {
             queryKey: ['notifications'],
             type: 'COUNTRY_MEETUP',
@@ -98,8 +98,7 @@ class WmeAlertSystemCore {
         this.timers            = { dialog: null, dialogWatchdog: null, snackbar: null, snackbarSettle: null, snackbarWatchdog: null, bell: null };
         this.bell              = { strategy: null, queryClient: null, unsubscribe: null, observer: null, isMerging: false, tries: 0, nativeCount: 0 };
 
-        // The library's own dialogs and snackbars (changelog): no "Sent by" line
-        this.coreEntry = { scriptId: this.scriptId, scriptName: this.scriptName, version: this.scriptVersion, isCore: true, links: {}, changelog: { mode: 'none' }, actionHandlers: new Map() };
+        this.coreEntry = { scriptId: this.scriptId, scriptName: this.scriptName, version: this.scriptVersion, links: {}, changelog: { mode: 'none' }, actionHandlers: new Map() };
 
         this.debounced = {
             mergeNativeNotifications: this.debounce(this.mergeNativeNotifications, 100),
@@ -150,7 +149,6 @@ class WmeAlertSystemCore {
             bell: () => this.detectBellStrategy()
         };
 
-        // One failing part must not skip the others
         Object.entries(steps).forEach(([name, step]) => {
             try {
                 step();
@@ -160,7 +158,7 @@ class WmeAlertSystemCore {
             }
         });
 
-        // Scripts waiting on ready() get the API even when an optional part (bell) failed
+        // Published even when an optional part (the bell) failed
         this.api = this.createApi();
 
         this.shared.resolveReady(this.api);
@@ -168,7 +166,7 @@ class WmeAlertSystemCore {
         document.dispatchEvent(new CustomEvent('wme-alert-system:ready', { detail: { version: this.scriptVersion } }));
 
         if (this.devVersion) {
-            // Console access for the manual tests (skill test-in-wme); a release never exposes the core to other scripts
+            // Dev builds only: console access for the manual tests
             this.shared.core = this;
         }
 
@@ -197,7 +195,7 @@ class WmeAlertSystemCore {
      * @returns {void}
      */
     registerListeners() {
-        // Capture: our notification buttons must not reach the WME (they would open '#was-action:…' in a new tab)
+        // Capture phase: keeps '#was-action:' links from opening a new tab
         document.addEventListener('click', this.bound.onDocumentClick, true);
 
         document.addEventListener('closeSnackbars', this.bound.onForeignSnackbar, true);
@@ -219,7 +217,7 @@ class WmeAlertSystemCore {
     createApi() {
         return Object.freeze({
             version: this.scriptVersion,
-            // `storage` is added by the script's own copy of the library (bootstrapWmeAlertSystem), never by the script
+            // `storage` comes from the script's own copy of the library
             register: (options, storage) => this.registerScript(options, storage)
         });
     }
@@ -239,7 +237,7 @@ class WmeAlertSystemCore {
     registerScript(options = {}, storage = null) {
         let { scriptId, scriptName, version = '', changelog = {}, links = {} } = options;
 
-        // '__proto__' would write to Object.prototype through the per-script storage maps
+        // '__proto__' would write to Object.prototype through the per-script maps
         if (typeof scriptId != 'string' || !/^[\w-]+$/.test(scriptId) || scriptId == '__proto__')
             throw new TypeError('WME Alert System: register() needs a scriptId made of letters, digits, "_" or "-".');
 
@@ -252,7 +250,6 @@ class WmeAlertSystemCore {
             scriptId,
             scriptName: String(scriptName || scriptId),
             version: String(version),
-            isCore: false,
             changelog: {
                 mode: ['dialog', 'notification'].includes(changelog?.mode) ? changelog.mode : 'none',
                 entries: Array.isArray(changelog?.entries) ? changelog.entries : null,
@@ -270,7 +267,7 @@ class WmeAlertSystemCore {
 
         this.registry.set(scriptId, entry);
 
-        // Before the version check: the last version seen may be the one stored by another WME environment
+        // Before the version check: the last version seen may be stored by another WME environment
         this.loadScriptStorage(entry);
 
         this.checkScriptVersion(entry);
@@ -389,9 +386,6 @@ class WmeAlertSystemCore {
         let wrapper   = document.createElement('div');
         let dialog    = document.createElement('wz-dialog');
 
-        let source = item.entry.isCore ? '' : `
-            <wz-caption class="was-dialog-source">${ this.getTranslation('dialog.sentBy', { script: this.escapeHtml(item.entry.scriptName) }) }</wz-caption>`;
-
         let buttonsHtml = buttons.map((action, index) => `
             <wz-button type="button" color="${ this.escapeHtml(action.variant || (index == 0 ? 'primary' : 'secondary')) }" ${ action.alarming ? 'alarming="true"' : '' } ${ action.disabled ? 'disabled' : '' } data-was-action="${ index }">
                 ${ this.escapeHtml(action.label) }
@@ -410,7 +404,6 @@ class WmeAlertSystemCore {
 
                 <wz-dialog-content>
                     ${ typeof content == 'string' ? content : '' }
-                    ${ source }
                 </wz-dialog-content>
 
                 <wz-dialog-controls layout="horizontal-reverse">
@@ -418,7 +411,7 @@ class WmeAlertSystemCore {
                 </wz-dialog-controls>
             </form>`;
 
-        // A node from the caller (any realm: no instanceof)
+        // Duck-typed: the node may come from another realm
         if (content?.nodeType)
             dialog.querySelector('wz-dialog-content').prepend(content);
 
@@ -465,7 +458,7 @@ class WmeAlertSystemCore {
 
         await dialog.componentOnReady?.();
 
-        // Closed (`close(id)` or by `onRender`) before it could be shown
+        // Closed before it could be shown
         if (item.isAnswered) {
             this.finishDialog(item);
 
@@ -756,7 +749,7 @@ class WmeAlertSystemCore {
 
         snackbar.showSnackbar();
 
-        // Fallback when `snackbarHidden` isn't emitted: a hidden snackbar empties its shadow root (observer moved to a recreated element)
+        // Fallback when `snackbarHidden` isn't emitted: a hidden snackbar empties its shadow root
         if (this.snackbarObserver?.target !== snackbar && snackbar.shadowRoot) {
             this.snackbarObserver?.observer.disconnect();
 
@@ -815,7 +808,7 @@ class WmeAlertSystemCore {
 
         clearTimeout(this.timers.snackbarWatchdog);
 
-        // The other snackbar announces itself around the moment ours hides: decide a little later
+        // The other snackbar may announce itself just after ours hides
         this.timers.snackbarSettle = setTimeout(() => {
             let elapsed     = Date.now() - item.shownAt;
             let interrupted = item.isInterrupted || (this.isForeignSnackbarVisible() && (!item.closeAutomatically || elapsed < item.closeDelay - 250));
@@ -917,7 +910,7 @@ class WmeAlertSystemCore {
         let data    = this.cloneJson(options?.data ?? null);
         let now     = Date.now();
 
-        // '.' can't appear in a scriptId or a sanitized localId: ids of different scripts never collide
+        // '.' can't appear in either part: ids of different scripts never collide
         let id = `${ this.nativeNotification.idPrefix }${ entry.scriptId }.${ localId.replace(/[^\w-]/g, '_') }`;
 
         let record = {
@@ -941,7 +934,7 @@ class WmeAlertSystemCore {
         if (record.buttonURL && !record.buttonText && !keys.buttonText)
             keys.buttonText = ['buttons.open'];
 
-        // The text is stored too: older library versions on the page ignore `textKeys`
+        // Also stored translated, for older copies that ignore `textKeys`
         for (let [field, [key, params]] of Object.entries(keys))
             record[field] = this.getTranslation(key, params);
 
@@ -950,7 +943,6 @@ class WmeAlertSystemCore {
 
         let own = this.notifications.filter(item => item.scriptId == entry.scriptId && item.id != id).sort((a, b) => b.timestamp - a.timestamp);
 
-        // The oldest notifications of the script go first past its limit
         let dropped = new Set(own.slice(this.limits.notificationsPerScript - 1).map(item => item.id));
 
         this.notifications = this.notifications.filter(item => item.id != id && !dropped.has(item.id));
@@ -1055,7 +1047,6 @@ class WmeAlertSystemCore {
         if (!record.keepOpen)
             this.closeBellPopup();
 
-        // Every version since the one seen before the update, like the dialog mode
         if (record.action == '__was-changelog') {
             this.showChangelog([record.scriptId], { [record.scriptId]: record.data?.since });
 
@@ -1145,7 +1136,7 @@ class WmeAlertSystemCore {
 
         let text = this.getTranslation(key, params && typeof params == 'object' && !Array.isArray(params) ? params : {});
 
-        // A key this copy doesn't know (written by a newer one) or a missing placeholder: the stored text is better
+        // Unknown key (written by a newer copy) or missing placeholder: keep the stored text
         return text == key || /%{\w+}/.test(text) ? stored : text;
     }
 
@@ -1185,7 +1176,7 @@ class WmeAlertSystemCore {
         let queryClient = null;
         let query       = null;
 
-        // A React Query API that changed in a WME release counts as "not found": the retries and the fallback still run
+        // A changed React Query API counts as "not found": retries and fallback still run
         try {
             queryClient = this.findQueryClient();
             query       = queryClient?.getQueryCache().find({ queryKey: this.nativeNotification.queryKey });
@@ -1200,7 +1191,7 @@ class WmeAlertSystemCore {
             return;
         }
 
-        // The bell renders after `wme-ready` and fetches its list a little later
+        // The bell renders after `wme-ready` and fetches its list later
         if (++this.bell.tries < this.limits.bellTries) {
             this.timers.bell = setTimeout(() => this.detectBellStrategy(), this.limits.retryDelay);
 
@@ -1246,7 +1237,7 @@ class WmeAlertSystemCore {
     }
 
     /**
-     * Reads the notification array of the cached query (a plain array in WME v2.374-5; an object holding one is still accepted).
+     * Reads the notification array of the cached query (a plain array; an object holding one is also accepted).
      * @param {*} data - The query data.
      *
      * @returns {{list: Object[], wrap: function(Object[]): *}|null} Null when no array is found.
@@ -1301,7 +1292,7 @@ class WmeAlertSystemCore {
 
         let signature = list => list.map(item => [item?.id, item?.timestamp, ...['title', 'message', 'buttonText', 'buttonURL'].map(name => item?.parameters?.[name])].join(':')).join('|');
 
-        // Our own update comes back through the cache subscription: nothing changed, nothing written
+        // Our own update returns through the subscription: skip it
         if (signature(merged) == signature(current.list))
             return;
 
@@ -1378,7 +1369,7 @@ class WmeAlertSystemCore {
         let sendBase   = xhrProto.send;
 
         pageWindow.fetch = function (input, init) {
-            // A string, a URL object or a Request (from any realm: no instanceof)
+            // String, URL or Request (no instanceof: may be another realm)
             let match = String(typeof input?.url == 'string' ? input.url : input ?? '').match(pattern);
 
             if (!match)
@@ -1394,7 +1385,7 @@ class WmeAlertSystemCore {
 
             this.wasNotificationRequest = match ? { id: match[1], method } : null;
 
-            // A reused request that we answered before gets the native fields back (other requests are left alone)
+            // A reused request we answered before gets the native fields back
             if (this.wasAnswered) {
                 ['readyState', 'status', 'statusText', 'responseText', 'response'].forEach(name => delete this[name]);
 
@@ -1477,7 +1468,7 @@ class WmeAlertSystemCore {
 
         let content = box.querySelector('.tippy-content') || box;
 
-        // A notification is open (ours or native): the list is not on screen
+        // Details view open: no list to fill
         if (content.querySelector('.notification-content-container'))
             return;
 
@@ -1688,7 +1679,7 @@ class WmeAlertSystemCore {
         }
 
         if (entry.changelog.mode == 'notification') {
-            // One notice per script: an unopened one is replaced, keeping the oldest version seen (ids had the version up to v1.0.0)
+            // One notice per script: an unopened one is replaced, keeping the oldest version seen
             let previous = this.notifications.filter(record => record.scriptId == entry.scriptId && record.action == '__was-changelog');
             let since    = previous.map(record => String(record.data?.since || '')).filter(Boolean).reduce((oldest, version) => this.isVersionGreater(oldest, version) ? version : oldest, last);
 
@@ -1723,7 +1714,7 @@ class WmeAlertSystemCore {
         if (Object.keys(since).length == 0)
             return;
 
-        // Marked as seen only once its notes are queued; a failed load is retried on the next page load
+        // Marked as seen only once its notes are queued; a failed load is retried next time
         let shown = await this.showChangelog(Object.keys(since), since, true);
 
         shown.forEach(scriptId => this.saveSeenVersion(scriptId, this.registry.get(scriptId).version));
@@ -1740,7 +1731,7 @@ class WmeAlertSystemCore {
     async showChangelog(scriptIds, since = {}, skipFailed = false) {
         let entries = scriptIds.map(scriptId => this.registry.get(scriptId)).filter(Boolean);
 
-        // Own keys only: a scriptId like 'constructor' must not read Object.prototype members
+        // Own keys only: a scriptId like 'constructor' must not read Object.prototype
         let sinceOf = entry => since && Object.hasOwn(since, entry.scriptId) ? since[entry.scriptId] : '';
 
         let lists = await Promise.all(entries.map(entry => this.loadChangelog(entry).catch(error => {
@@ -1749,7 +1740,7 @@ class WmeAlertSystemCore {
             return null;
         })));
 
-        // After an update, a script whose notes failed to load waits for the next page load; asked by the user, it shows "unavailable"
+        // After an update, a script whose notes failed to load is skipped and retried next time; on demand it shows "unavailable"
         let shown = entries
             .map((entry, index) => ({ entry, list: lists[index] }))
             .filter(({ list }) => list || !skipFailed);
@@ -1759,7 +1750,6 @@ class WmeAlertSystemCore {
 
         let isSingle = shown.length == 1;
 
-        // Several scripts: one chip each (name and version), the notes below belong to the selected chip
         let chips = isSingle ? '' : `
             <div class="was-changelog-chips">
                 <wz-chip-select>
@@ -1787,7 +1777,7 @@ class WmeAlertSystemCore {
                     row.addEventListener('wheel', this.bound.onChangelogChipsWheel, { passive: false });
                     row.addEventListener('scroll', () => this.updateChangelogChipsFade(row), { passive: true });
 
-                    // The dialog has no size until it is shown: the faded edges follow the row's size
+                    // The dialog has no size until shown: the faded edges follow the row's size
                     new ResizeObserver(() => this.updateChangelogChipsFade(row)).observe(row);
                 }
             }
@@ -1841,7 +1831,7 @@ class WmeAlertSystemCore {
     selectChangelogScript(container, scriptId) {
         let sections = [...container.querySelectorAll('.was-changelog-script')];
 
-        // Clicking the selected chip clears it: keep the current script selected
+        // Clicking the selected chip clears it: keep it selected
         if (!scriptId) {
             let current = sections.find(section => !section.hidden)?.dataset.wasScript;
             let chip    = [...container.querySelectorAll('wz-checkable-chip')].find(item => item.value == current);
@@ -1887,7 +1877,6 @@ class WmeAlertSystemCore {
 
         event.preventDefault();
 
-        // Each turn moves the target, the row glides toward it per frame
         let max   = row.scrollWidth - row.clientWidth;
         let delta = event.deltaMode == 1 ? event.deltaY * 16 : event.deltaY;
         let glide = this.chipGlide;
@@ -1952,7 +1941,6 @@ class WmeAlertSystemCore {
         let date    = /^\d{4}-\d{2}-\d{2}$/.test(item.date ?? '') ? this.escapeHtml(this.formatLocalizedDate(`${ item.date }T00:00:00`)) : '';
         let version = `<strong>v${ this.escapeHtml(item.version) }:</strong>`;
 
-        // The version points to its code on Greasy Fork when the script gave both the page and the version id
         if (entry.links.greasyFork && item.versionId != null && item.versionId !== '') {
             let url   = `${ entry.links.greasyFork }?version=${ encodeURIComponent(item.versionId) }`;
             let title = this.escapeHtml(this.getTranslation('changelog.viewVersionCode'));
@@ -2011,7 +1999,7 @@ class WmeAlertSystemCore {
      */
     loadChangelog(entry) {
         if (!this.changelogLoads.has(entry.scriptId)) {
-            // A loader that never settles would hold the grouped dialog of every updated script
+            // A loader that never settles would hold the dialog of every updated script
             let load = Promise.resolve()
                 .then(() => entry.changelog.entries || this.withTimeout(entry.changelog.loader?.() || [], this.limits.changelogTimeout))
                 .then(list => {
@@ -2114,7 +2102,7 @@ class WmeAlertSystemCore {
      * @returns {Promise<boolean>} True when applied.
      */
     async confirmOnMap(entry, options = {}) {
-        // No `alarming`: the WME balloon ignores it (v2.374/v2.376), so the dialog fallback doesn't use it either
+        // No `alarming`: the WME balloon ignores it
         let { title = '', content = '', lonLat, applyButtonText, cancelButtonText } = options || {};
 
         // TODO: There is no official replacement in the SDK yet
@@ -2155,7 +2143,7 @@ class WmeAlertSystemCore {
      */
     async getVisibleLonLat(lonLat) {
         try {
-            // The async SDK returns promises: a promise handed to the WME as `lonLat` crashes its React tree
+            // The async SDK returns promises: one handed to the WME as `lonLat` crashes its React tree
             let requested = lonLat ?? await this.wmeSdk.Map.getMapCenter();
 
             let lon = Number(requested?.lon);
@@ -2292,12 +2280,10 @@ class WmeAlertSystemCore {
         if (seen && (localSeen != seen || sharedSeen != seen))
             this.saveSeenVersion(scriptId, seen);
 
-        // This environment's notifications (loaded from localStorage at start) join the shared ones
         let local = this.notifications.filter(item => item.scriptId == scriptId);
 
         this.mergeScriptNotifications(entry);
 
-        // Drops the moved ones from localStorage
         if (local.length)
             this.saveNotifications();
 
@@ -2482,19 +2468,12 @@ class WmeAlertSystemCore {
                 --wz-snackbar-position: absolute;
             }
 
-            /* The native × stays on the right even in RTL (and the title area runs under it): keep the title clear of it */
+            /* The native × stays on the right even in RTL: keep the title clear of it */
             .was-dialog-wrapper wz-dialog[dismissible]:not([dismissible="false"]) wz-dialog-header {
                 display: block;
                 padding-right: 24px;
             }
 
-            .was-dialog-source {
-                display: block;
-                margin-top: 16px;
-                opacity: 0.7;
-            }
-
-            /* Chips on one line, scrolled sideways without a scroll bar */
             .was-changelog-chips {
                 margin-bottom: 16px;
                 overflow-x: auto;
@@ -2526,7 +2505,6 @@ class WmeAlertSystemCore {
                 cursor: pointer;
             }
 
-            /* Faded edges hint that the row slides */
             .was-changelog-chips[data-was-fade-end] {
                 -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
                 mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
@@ -2542,7 +2520,7 @@ class WmeAlertSystemCore {
                 mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
             }
 
-            /* Keeps the dialog away from the screen edges: the chips stay on top, the notes scroll; the right padding keeps notes and cards off the scroll bar */
+            /* Keeps the dialog off the screen edges: the chips stay on top, the notes scroll */
             .was-changelog-body {
                 max-height: min(60vh, 560px);
                 overflow-y: auto;
@@ -2553,7 +2531,7 @@ class WmeAlertSystemCore {
                 margin-top: 0px;
             }
 
-            /* One card per older version (update notes and history), same look as the changelog history of WME Sidebar Wazeopedia */
+            /* One card per older version */
             .was-changelog-card {
                 border: 1px solid var(--disabled_text);
                 border-radius: 8px;
@@ -2952,9 +2930,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} opgedateer',
                         viewVersionCode: 'Bekyk die kode van hierdie weergawe',
                     },
-                    dialog: {
-                        sentBy: 'Gestuur deur %{script}'
-                    },
                     notification: {
                         from: 'Van: %{sender}'
                     },
@@ -2984,9 +2959,6 @@ class WmeAlertSystemCore {
                         updatedTitle: 'تم تحديث %{script}',
                         viewVersionCode: 'عرض كود هذا الإصدار',
                     },
-                    dialog: {
-                        sentBy: 'أرسله %{script}'
-                    },
                     notification: {
                         from: 'من: %{sender}'
                     },
@@ -3014,9 +2986,6 @@ class WmeAlertSystemCore {
                         updatedMessage: '%{script} е обновен до v%{version}. Вижте какво е променено.',
                         updatedTitle: '%{script} е обновен',
                         viewVersionCode: 'Преглед на кода на тази версия',
-                    },
-                    dialog: {
-                        sentBy: 'Изпратено от %{script}'
                     },
                     notification: {
                         from: 'От: %{sender}'
@@ -3047,9 +3016,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} actualitzat',
                         viewVersionCode: 'Mostra el codi d\'aquesta versió',
                     },
-                    dialog: {
-                        sentBy: 'Enviat per %{script}'
-                    },
                     notification: {
                         from: 'De: %{sender}'
                     },
@@ -3077,9 +3043,6 @@ class WmeAlertSystemCore {
                         updatedMessage: '%{script} byl aktualizován na v%{version}. Podívejte se, co se změnilo.',
                         updatedTitle: '%{script} aktualizován',
                         viewVersionCode: 'Zobrazit kód této verze',
-                    },
-                    dialog: {
-                        sentBy: 'Odesláno skriptem %{script}'
                     },
                     notification: {
                         from: 'Od: %{sender}'
@@ -3109,9 +3072,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} opdateret',
                         viewVersionCode: 'Vis kode for denne version',
                     },
-                    dialog: {
-                        sentBy: 'Sendt af %{script}'
-                    },
                     notification: {
                         from: 'Fra: %{sender}'
                     },
@@ -3140,9 +3100,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} aktualisiert',
                         viewVersionCode: 'Code dieser Version anzeigen',
                     },
-                    dialog: {
-                        sentBy: 'Gesendet von %{script}'
-                    },
                     notification: {
                         from: 'Von: %{sender}'
                     },
@@ -3170,9 +3127,6 @@ class WmeAlertSystemCore {
                         updatedMessage: 'Το %{script} ενημερώθηκε στην έκδοση v%{version}. Δείτε τι άλλαξε.',
                         updatedTitle: 'Το %{script} ενημερώθηκε',
                         viewVersionCode: 'Προβολή του κώδικα αυτής της έκδοσης',
-                    },
-                    dialog: {
-                        sentBy: 'Στάλθηκε από %{script}'
                     },
                     notification: {
                         from: 'Από: %{sender}'
@@ -3203,9 +3157,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} actualizado',
                         viewVersionCode: 'Ver el código de esta versión',
                     },
-                    dialog: {
-                        sentBy: 'Enviado por %{script}'
-                    },
                     notification: {
                         from: 'De: %{sender}'
                     },
@@ -3235,9 +3186,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} actualizado',
                         viewVersionCode: 'Ver el código de esta versión',
                     },
-                    dialog: {
-                        sentBy: 'Enviado por %{script}'
-                    },
                     notification: {
                         from: 'De: %{sender}'
                     },
@@ -3265,9 +3213,6 @@ class WmeAlertSystemCore {
                         updatedMessage: '%{script} uuendati versioonile v%{version}. Vaata, mis muutus.',
                         updatedTitle: '%{script} uuendatud',
                         viewVersionCode: 'Vaata selle versiooni koodi',
-                    },
-                    dialog: {
-                        sentBy: 'Saatis %{script}'
                     },
                     notification: {
                         from: 'Saatja: %{sender}'
@@ -3298,9 +3243,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} eguneratuta',
                         viewVersionCode: 'Ikusi bertsio honen kodea',
                     },
-                    dialog: {
-                        sentBy: '%{script} scriptak bidalia'
-                    },
                     notification: {
                         from: 'Nork: %{sender}'
                     },
@@ -3330,9 +3272,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} به‌روزرسانی شد',
                         viewVersionCode: 'مشاهده کد این نسخه',
                     },
-                    dialog: {
-                        sentBy: 'ارسال‌شده توسط %{script}'
-                    },
                     notification: {
                         from: 'از: %{sender}'
                     },
@@ -3361,9 +3300,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} päivitetty',
                         viewVersionCode: 'Näytä tämän version koodi',
                     },
-                    dialog: {
-                        sentBy: 'Lähettäjä: %{script}'
-                    },
                     notification: {
                         from: 'Lähettäjä: %{sender}'
                     },
@@ -3391,9 +3327,6 @@ class WmeAlertSystemCore {
                         updatedMessage: '%{script} a été mis à jour vers la v%{version}. Découvrez ce qui a changé.',
                         updatedTitle: '%{script} mis à jour',
                         viewVersionCode: 'Voir le code de cette version',
-                    },
-                    dialog: {
-                        sentBy: 'Envoyé par %{script}'
                     },
                     notification: {
                         from: 'De : %{sender}'
@@ -3424,9 +3357,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} actualizado',
                         viewVersionCode: 'Ver o código desta versión',
                     },
-                    dialog: {
-                        sentBy: 'Enviado por %{script}'
-                    },
                     notification: {
                         from: 'De: %{sender}'
                     },
@@ -3455,9 +3385,6 @@ class WmeAlertSystemCore {
                         updatedMessage: '%{script} עודכן לגרסה v%{version}. כדאי לראות מה השתנה.',
                         updatedTitle: '%{script} עודכן',
                         viewVersionCode: 'הצג את הקוד של גרסה זו',
-                    },
-                    dialog: {
-                        sentBy: 'נשלח על ידי %{script}'
                     },
                     notification: {
                         from: 'מאת: %{sender}'
@@ -3488,9 +3415,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} अपडेट हुआ',
                         viewVersionCode: 'इस संस्करण का कोड देखें',
                     },
-                    dialog: {
-                        sentBy: '%{script} द्वारा भेजा गया'
-                    },
                     notification: {
                         from: 'प्रेषक: %{sender}'
                     },
@@ -3520,9 +3444,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} ažuriran',
                         viewVersionCode: 'Prikaži kôd ove verzije',
                     },
-                    dialog: {
-                        sentBy: 'Poslao %{script}'
-                    },
                     notification: {
                         from: 'Od: %{sender}'
                     },
@@ -3550,9 +3471,6 @@ class WmeAlertSystemCore {
                         updatedMessage: 'A(z) %{script} frissült a v%{version} verzióra. Nézd meg, mi változott.',
                         updatedTitle: 'A(z) %{script} frissült',
                         viewVersionCode: 'A verzió kódjának megtekintése',
-                    },
-                    dialog: {
-                        sentBy: 'Küldte: %{script}'
                     },
                     notification: {
                         from: 'Feladó: %{sender}'
@@ -3582,9 +3500,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} diperbarui',
                         viewVersionCode: 'Lihat kode versi ini',
                     },
-                    dialog: {
-                        sentBy: 'Dikirim oleh %{script}'
-                    },
                     notification: {
                         from: 'Dari: %{sender}'
                     },
@@ -3613,9 +3528,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} aggiornato',
                         viewVersionCode: 'Visualizza il codice di questa versione',
                     },
-                    dialog: {
-                        sentBy: 'Inviato da %{script}'
-                    },
                     notification: {
                         from: 'Da: %{sender}'
                     },
@@ -3643,9 +3555,6 @@ class WmeAlertSystemCore {
                         updatedMessage: '%{script} が v%{version} に更新されました。変更内容をご確認ください。',
                         updatedTitle: '%{script} が更新されました',
                         viewVersionCode: 'このバージョンのコードを表示',
-                    },
-                    dialog: {
-                        sentBy: '送信元: %{script}'
                     },
                     notification: {
                         from: '送信者: %{sender}'
@@ -3676,9 +3585,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} განახლდა',
                         viewVersionCode: 'ამ ვერსიის კოდის ნახვა',
                     },
-                    dialog: {
-                        sentBy: 'გამომგზავნი: %{script}'
-                    },
                     notification: {
                         from: 'ვისგან: %{sender}'
                     },
@@ -3707,9 +3613,6 @@ class WmeAlertSystemCore {
                         updatedMessage: '%{script}이(가) v%{version}(으)로 업데이트되었습니다. 변경 사항을 확인하세요.',
                         updatedTitle: '%{script} 업데이트됨',
                         viewVersionCode: '이 버전의 코드 보기',
-                    },
-                    dialog: {
-                        sentBy: '보낸 스크립트: %{script}'
                     },
                     notification: {
                         from: '보낸 사람: %{sender}'
@@ -3740,9 +3643,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} atnaujintas',
                         viewVersionCode: 'Peržiūrėti šios versijos kodą',
                     },
-                    dialog: {
-                        sentBy: 'Siuntė %{script}'
-                    },
                     notification: {
                         from: 'Nuo: %{sender}'
                     },
@@ -3772,9 +3672,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} atjaunināts',
                         viewVersionCode: 'Skatīt šīs versijas kodu',
                     },
-                    dialog: {
-                        sentBy: 'Nosūtīja %{script}'
-                    },
                     notification: {
                         from: 'No: %{sender}'
                     },
@@ -3802,9 +3699,6 @@ class WmeAlertSystemCore {
                         updatedMessage: '%{script} telah dikemas kini ke v%{version}. Lihat apa yang berubah.',
                         updatedTitle: '%{script} dikemas kini',
                         viewVersionCode: 'Lihat kod versi ini',
-                    },
-                    dialog: {
-                        sentBy: 'Dihantar oleh %{script}'
                     },
                     notification: {
                         from: 'Daripada: %{sender}'
@@ -3834,9 +3728,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} bijgewerkt',
                         viewVersionCode: 'Code van deze versie bekijken',
                     },
-                    dialog: {
-                        sentBy: 'Verzonden door %{script}'
-                    },
                     notification: {
                         from: 'Van: %{sender}'
                     },
@@ -3864,9 +3755,6 @@ class WmeAlertSystemCore {
                         updatedMessage: '%{script} ble oppdatert til v%{version}. Se hva som er endret.',
                         updatedTitle: '%{script} oppdatert',
                         viewVersionCode: 'Vis koden for denne versjonen',
-                    },
-                    dialog: {
-                        sentBy: 'Sendt av %{script}'
                     },
                     notification: {
                         from: 'Fra: %{sender}'
@@ -3896,9 +3784,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} zaktualizowany',
                         viewVersionCode: 'Pokaż kod tej wersji',
                     },
-                    dialog: {
-                        sentBy: 'Wysłane przez %{script}'
-                    },
                     notification: {
                         from: 'Od: %{sender}'
                     },
@@ -3926,9 +3811,6 @@ class WmeAlertSystemCore {
                         updatedMessage: '%{script} foi atualizado para a v%{version}. Veja o que mudou.',
                         updatedTitle: '%{script} atualizado',
                         viewVersionCode: 'Ver o código desta versão',
-                    },
-                    dialog: {
-                        sentBy: 'Enviado por %{script}'
                     },
                     notification: {
                         from: 'De: %{sender}'
@@ -3958,9 +3840,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} atualizado',
                         viewVersionCode: 'Ver o código desta versão',
                     },
-                    dialog: {
-                        sentBy: 'Enviado por %{script}'
-                    },
                     notification: {
                         from: 'De: %{sender}'
                     },
@@ -3988,9 +3867,6 @@ class WmeAlertSystemCore {
                         updatedMessage: '%{script} a fost actualizat la v%{version}. Vezi ce s-a schimbat.',
                         updatedTitle: '%{script} actualizat',
                         viewVersionCode: 'Vezi codul acestei versiuni',
-                    },
-                    dialog: {
-                        sentBy: 'Trimis de %{script}'
                     },
                     notification: {
                         from: 'De la: %{sender}'
@@ -4021,9 +3897,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} обновлён',
                         viewVersionCode: 'Посмотреть код этой версии',
                     },
-                    dialog: {
-                        sentBy: 'Отправлено скриптом %{script}'
-                    },
                     notification: {
                         from: 'От: %{sender}'
                     },
@@ -4051,9 +3924,6 @@ class WmeAlertSystemCore {
                         updatedMessage: '%{script} bol aktualizovaný na v%{version}. Pozrite sa, čo sa zmenilo.',
                         updatedTitle: '%{script} aktualizovaný',
                         viewVersionCode: 'Zobraziť kód tejto verzie',
-                    },
-                    dialog: {
-                        sentBy: 'Odoslal %{script}'
                     },
                     notification: {
                         from: 'Od: %{sender}'
@@ -4084,9 +3954,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} posodobljen',
                         viewVersionCode: 'Prikaži kodo te različice',
                     },
-                    dialog: {
-                        sentBy: 'Poslal %{script}'
-                    },
                     notification: {
                         from: 'Od: %{sender}'
                     },
@@ -4114,9 +3981,6 @@ class WmeAlertSystemCore {
                         updatedMessage: '%{script} har uppdaterats till v%{version}. Se vad som har ändrats.',
                         updatedTitle: '%{script} uppdaterat',
                         viewVersionCode: 'Visa koden för den här versionen',
-                    },
-                    dialog: {
-                        sentBy: 'Skickat av %{script}'
                     },
                     notification: {
                         from: 'Från: %{sender}'
@@ -4147,9 +4011,6 @@ class WmeAlertSystemCore {
                         updatedTitle: 'อัปเดต %{script} แล้ว',
                         viewVersionCode: 'ดูโค้ดของเวอร์ชันนี้',
                     },
-                    dialog: {
-                        sentBy: 'ส่งโดย %{script}'
-                    },
                     notification: {
                         from: 'จาก: %{sender}'
                     },
@@ -4179,9 +4040,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} güncellendi',
                         viewVersionCode: 'Bu sürümün kodunu görüntüle',
                     },
-                    dialog: {
-                        sentBy: 'Gönderen: %{script}'
-                    },
                     notification: {
                         from: 'Gönderen: %{sender}'
                     },
@@ -4210,9 +4068,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} оновлено',
                         viewVersionCode: 'Переглянути код цієї версії',
                     },
-                    dialog: {
-                        sentBy: 'Надіслано скриптом %{script}'
-                    },
                     notification: {
                         from: 'Від: %{sender}'
                     },
@@ -4240,9 +4095,6 @@ class WmeAlertSystemCore {
                         updatedMessage: '%{script} đã được cập nhật lên v%{version}. Xem những gì đã thay đổi.',
                         updatedTitle: 'Đã cập nhật %{script}',
                         viewVersionCode: 'Xem mã của phiên bản này',
-                    },
-                    dialog: {
-                        sentBy: 'Gửi bởi %{script}'
                     },
                     notification: {
                         from: 'Từ: %{sender}'
@@ -4273,9 +4125,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} 已更新',
                         viewVersionCode: '查看此版本的代码',
                     },
-                    dialog: {
-                        sentBy: '来自 %{script}'
-                    },
                     notification: {
                         from: '发件人：%{sender}'
                     },
@@ -4304,9 +4153,6 @@ class WmeAlertSystemCore {
                         updatedMessage: '%{script} 已更新至 v%{version}。查看變更內容。',
                         updatedTitle: '%{script} 已更新',
                         viewVersionCode: '檢視此版本的程式碼',
-                    },
-                    dialog: {
-                        sentBy: '來自 %{script}'
                     },
                     notification: {
                         from: '寄件者：%{sender}'
@@ -4337,9 +4183,6 @@ class WmeAlertSystemCore {
                         updatedTitle: '%{script} updated',
                         viewVersionCode: 'View this version\'s code',
                     },
-                    dialog: {
-                        sentBy: 'Sent by %{script}'
-                    },
                     notification: {
                         from: 'From: %{sender}'
                     },
@@ -4367,8 +4210,8 @@ function bootstrapWmeAlertSystem() {
         let resolveReady = null;
         let ready        = new Promise(resolve => resolveReady = resolve);
 
-        // Read by every copy (any version) on the page: its shape is a contract between versions. The core itself is not kept here, so
-        // scripts can't reach its internals; not enumerable, not writable
+        // Read by every copy (any version) on the page: its shape is a contract between versions. Not enumerable, not writable;
+        // the core isn't kept here, so scripts can't reach its internals
         shared = { candidates: [], isStarting: false, startedVersion: null, ready, resolveReady };
 
         Object.defineProperty(pageWindow, '__wmeAlertSystem', { value: shared });
@@ -4397,7 +4240,7 @@ function bootstrapWmeAlertSystem() {
 
         let candidates = [...shared.candidates];
 
-        // The newest copy that starts wins; a copy that throws hands over to the next newest
+        // The newest copy that starts wins; one that throws hands over to the next newest
         while (candidates.length) {
             let newest = candidates.reduce((best, candidate) => WmeAlertSystemCore.isVersionGreater(candidate.version, best.version) ? candidate : best);
 
@@ -4418,7 +4261,7 @@ function bootstrapWmeAlertSystem() {
         shared.startedVersion = null;
     };
 
-    // No deadline: on a slow load ready() must still resolve. Slower after a while (a page without the WME never gets the SDK)
+    // No deadline: on a slow load ready() must still resolve. Slower polls after a while
     let startedAt = Date.now();
 
     let waitForSdk = () => {
@@ -4432,7 +4275,7 @@ function bootstrapWmeAlertSystem() {
 
     let handle = pageWindow.WmeAlertSystem;
 
-    // The GM functions of the script that @requires this copy (undefined when not granted); they keep writing to that script's
+    // GM functions of the script that @requires this copy (undefined when not granted); they keep writing to that script's
     // storage even when the core runs in another script's copy
     /* global GM_getValue, GM_setValue, GM_addValueChangeListener */
     let storage = typeof GM_getValue == 'function' && typeof GM_setValue == 'function'

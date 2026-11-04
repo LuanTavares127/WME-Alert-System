@@ -66,7 +66,7 @@ alerts.inline.alert(container, { variant, title, text, dismissible })           
 - Changelog entries: same shape as the author's `changelog.json` — `{ version, versionId?, date: 'YYYY-MM-DD', changes: { <locale>: html, en: html } }`; text = `changes[locale] || changes.en`. Only the running version's notes are plain (`renderChangelogCurrent`: the script's HTML as is, no card, version or date — the dialog title names the version, like the WME Speed Display dialog; user decision, 2026-10-27); every other version (the update's older versions and the history button's) is a card (`renderChangelogCard(entry, item)`); `.was-changelog-body` has `padding-right: 8px` so notes and cards stay off the scroll bar; with `versionId` and `links.greasyFork` the version links to `<greasyFork>?version=<versionId>`. First install stores the version silently (with a lent storage, "first" means no version in this environment's `localStorage` nor in the script's Tampermonkey storage); an update shows every entry `> last seen && <= current` (dialog mode, and the bell notification's button through `data.since`). Notification mode keeps one notice per script (id `changelog`; up to v1.0.0 it was `changelog-<version>`): a newer update replaces an unopened one and keeps the oldest `since`. A `loader` has 15 s; after an update, a script whose notes failed to load is left out of the dialog and not marked as seen (retried on the next load).
 
 ### Dialogs (`DialogQueue` section)
-`enqueueDialog` → `processNextDialog` (waits while a WME `wz-dialog` is open; retry 1 s) → `openDialog` (`wz-dialog` in `#wz-dialog-container`, `<form>` + header/content/controls `layout="horizontal-reverse"`, `componentOnReady` then `showDialog()`). Close = `dialogHidden` event, fallback shadow root emptied (`isRendered`), last resort `watchActiveDialog` (every 1 s: wrapper removed from the page → finished). A dialog closed before `componentOnReady` is never shown. The promise always resolves. Non-core dialogs show "Sent by <script>".
+`enqueueDialog` → `processNextDialog` (waits while a WME `wz-dialog` is open; retry 1 s) → `openDialog` (`wz-dialog` in `#wz-dialog-container`, `<form>` + header/content/controls `layout="horizontal-reverse"`, `componentOnReady` then `showDialog()`). Close = `dialogHidden` event, fallback shadow root emptied (`isRendered`), last resort `watchActiveDialog` (every 1 s: wrapper removed from the page → finished). A dialog closed before `componentOnReady` is never shown. The promise always resolves. No line says which script sent a dialog (removed in v1.3.1, user decision 2026-11-03).
 - Dismissible dialogs get `padding-right: 24px` (and `display: block`) on `wz-dialog-header`: the native × stays on the right even in RTL and the title area runs under it.
 - Hidden tab: `hideDialog()` doesn't finish until the tab is visible (§4). Deliberately not worked around (user decision, phase 5b): the promise already resolved, nobody sees the screen, and removing a `wz-dialog` mid-animation has unknown side effects. Documented in the readme.
 
@@ -130,9 +130,12 @@ One library `wz-snackbar#was-snackbar` in `#map-message-container`, refilled per
 - Stencil reflects `dismissible` as an empty attribute (`dismissible=""`) once upgraded; `dismissible="false"` stays as set. Select it with `[dismissible]:not([dismissible="false"])`.
 - A freshly created and connected `wz-dialog` had **no** `componentOnReady()` (TypeError when called; the library already uses `?.()`); `showDialog()` worked right after it.
 
+### Confirmed: queue vs. native dialog (Beta v2.378-6, 2026-11-04, Opera GX via CDP, public API of the 1.3.0 core)
+- "Atalhos do teclado" (footer link) opens a real native dialog: `wz-dialog#shortcuts-dialog` in `#wz-dialog-container`, an easy way to reproduce this without touching the map.
+- Two of ours requested while it was open: nothing shown for 5 s; after its × (`.dismiss-button` in the shadow root) the first opened about 0.5 s later, then the second, in order, and both promises resolved with their values.
+
 ### Pending
 - Whether the bell has a "delete all" that sends our ids in bulk.
-- A WME `wz-dialog` open while ours is queued (not reproduced).
 
 Cross-tab sync works (Beta, two tabs): a notification added in one tab shows in the other's bell and counter; removing it in the second removes it in the first.
 
